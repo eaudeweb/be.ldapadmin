@@ -1,0 +1,19 @@
+<tal:block replace="structure here/manage_page_header" />
+
+<h1>Add LDAP account tools</h1>
+
+<form action="manage_addUsersEditor" method="post">
+    <label for="id">Id:</label>
+    <input id="tool_id" type="text" name="tool_id" size="50" value="profile"/>
+    <br/>
+
+    <label for="title">Title:</label>
+    <input id="title" type="text" name="title" size="50" value="Profile"/>
+    <br/>
+
+    <metal:block use-macro="template/ldap_config_edit_macro" />
+
+    <input type="submit" value="Add" />
+</form>
+
+<tal:block replace="structure here/manage_page_footer" />

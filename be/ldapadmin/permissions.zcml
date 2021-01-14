@@ -1,0 +1,9 @@
+<configure xmlns="http://namespaces.zope.org/zope"
+           xmlns:browser="http://namespaces.zope.org/browser"
+           xmlns:five="http://namespaces.zope.org/five">
+
+  <permission id="ldap.ExtendedEditRoles" title="LDAP edit extended roles" />
+  <permission id="ldap.EditUsers" title="LDAP edit users" />
+  <permission id="ldap.EditRoles" title="LDAP edit roles" />
+
+</configure>

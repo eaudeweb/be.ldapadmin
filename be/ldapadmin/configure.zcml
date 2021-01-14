@@ -1,0 +1,57 @@
+<configure xmlns="http://namespaces.zope.org/zope"
+    xmlns:browser="http://namespaces.zope.org/browser"
+    xmlns:five="http://namespaces.zope.org/five">
+
+    <five:registerPackage
+        package="be.ldapadmin"
+        initialize="be.ldapadmin.initialize"
+        />
+
+    <include file="permissions.zcml" />
+    <include file="extended_management.zcml" />
+    <include package=".views" />
+
+    <browser:resourceDirectory
+        name="be.ldapadmin-www"
+        directory="www"
+        />
+
+    <browser:page 
+        name="reset_user" 
+        for=".users_admin.UsersAdmin"
+        permission="ldap.EditUsers"
+        class=".users_admin.ResetUser"
+        />
+
+    <browser:page 
+        name="bulk_create_user"
+        for=".users_admin.UsersAdmin"
+        permission="ldap.EditUsers"
+        class=".users_admin.BulkUserImporter"
+        />
+
+    <browser:page 
+        name="index.html"
+        for=".roles_editor.NoExtendedManagementRoleError"
+        permission="zope.Public"
+        class=".roles_editor.NoExceptionManagementView"
+        />
+
+    <browser:page
+        name="migrate_disabled_emails"
+        for=".users_admin.UsersAdmin"
+        permission='ldap.EditUsers'
+        class='.users_admin.MigrateDisabledEmails'
+        />
+
+    <browser:resource
+        name="jquery-ui.min.js"
+        file="www/jquery-ui-1.9.2.min.js"
+        />
+
+    <browser:resource
+        name="jquery.min.js"
+        file="www/jquery-1.7.1.min.js"
+  />
+
+</configure>
