@@ -1,7 +1,6 @@
 ''' common ui methods '''
 
 from zope.component import getMultiAdapter
-from zope.pagetemplate.pagetemplatefile import PageTemplateFile as Z3Template
 from Acquisition import Implicit
 from Products.Five.browser.pagetemplatefile import ViewPageTemplateFile
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile as \
@@ -10,7 +9,8 @@ from persistent.list import PersistentList
 from persistent.mapping import PersistentMapping
 from be.ldapadmin.constants import NETWORK_NAME
 from be.ldapadmin.countries import get_country
-from be.ldapadmin.logic_common import _get_user_id, _is_authenticated
+from be.ldapadmin.logic_common import logged_in_user, _is_authenticated
+from be.ldapadmin.logic_common import load_template
 
 
 def get_role_name(agent, role_id):
@@ -52,12 +52,6 @@ def extend_crumbs(crumbs_html, editor_url, extra_crumbs):
     last_crumb.text = last_crumb_text
 
     return tostring(crumbs)
-
-
-def load_template(name, _memo={}):
-    if name not in _memo:
-        _memo[name] = Z3Template(name, globals())
-    return _memo[name]
 
 
 class SessionMessages(object):
@@ -177,7 +171,7 @@ class CommonTemplateLogic(object):
         return _is_authenticated(self._get_request())
 
     def user_id(self):
-        return _get_user_id(self._get_request())
+        return logged_in_user(self._get_request())
 
     def buttons_bar(self, current_page, role_id, members_in_role=0):
         user = self._get_request().AUTHENTICATED_USER

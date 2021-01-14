@@ -92,8 +92,9 @@ class UserInfoSchema(colander.MappingSchema):
         description='Full name (native language)')
     search_helper = colander.SchemaNode(
         colander.String(), missing='', description='ASCII search helper')
-    reasonToCreate = colander.SchemaNode(
-        colander.String(), description='Reason to create the account')
+    # Not present in Circa Schema
+    # reasonToCreate = colander.SchemaNode(
+    #    colander.String(), description='Reason to create the account')
     job_title = colander.SchemaNode(
         colander.String(), missing='', description='Job title')
     email = colander.SchemaNode(

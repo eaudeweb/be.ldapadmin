@@ -1,7 +1,7 @@
 ''' LDAP config and methods '''
 
-from be.ldapadmin.ui_common import load_template
 from be.ldapadmin.db_agent import UsersDB
+from be.ldapadmin.logic_common import logged_in_user, load_template
 
 defaults = {
     'admin_dn': "cn=Manager,dc=CIRCA,dc=local",
@@ -43,6 +43,18 @@ def ldap_agent_with_config(config, bind=False, secondary=False):
             db.perform_bind(config['admin_dn'], config['admin_pw'])
 
     return db
+
+
+def _get_ldap_agent(context, bind=False, secondary=False):
+    ''' get the ldap agent '''
+    agent = ldap_agent_with_config(context._config, bind,
+                                   secondary=secondary)
+    try:
+        agent._author = logged_in_user(context.REQUEST)
+    except AttributeError:
+        agent._author = "System user"
+
+    return agent
 
 
 edit_macro = load_template('zpt/ldap_config.zpt').macros['edit']

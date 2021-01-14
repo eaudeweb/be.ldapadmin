@@ -34,6 +34,7 @@ from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import NaayaViewPageTemplateFile
 from be.ldapadmin.ui_common import SessionMessages, TemplateRenderer
 from be.ldapadmin.ui_common import get_role_name, roles_list_to_text
+from be.ldapadmin.logic_common import _is_authenticated, logged_in_user
 from be.ldapadmin.db_agent import RoleNotFound, UserNotFound
 
 try:
@@ -71,10 +72,6 @@ def manage_add_roles_editor(parent, id, REQUEST=None):
         REQUEST.RESPONSE.redirect(parent.absolute_url() + '/manage_workspace')
 
 
-def _is_authenticated(request):
-    return ('Authenticated' in request.AUTHENTICATED_USER.getRoles())
-
-
 def _role_parents(role_id):
     if role_id is None:
         return []
@@ -92,15 +89,6 @@ SESSION_FORM_DATA = SESSION_PREFIX + '.form_data'
 
 def _set_session_message(request, msg_type, msg):
     SessionMessages(request, SESSION_MESSAGES).add(msg_type, msg)
-
-
-def logged_in_user(request):
-    user_id = ''
-    if _is_authenticated(request):
-        user = request.get('AUTHENTICATED_USER', '')
-        user_id = str(user.getId())
-
-    return user_id
 
 
 def filter_roles(agent, pattern):
@@ -298,10 +286,8 @@ class RolesEditor(Folder):
         self._config.update(ldap_config.read_form(REQUEST.form, edit=True))
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/manage_edit')
 
-    def _get_ldap_agent(self, bind=True):
-        agent = ldap_config.ldap_agent_with_config(self._config, bind)
-        agent._author = logged_in_user(self.REQUEST)
-        return agent
+    def _get_ldap_agent(self, bind=True, secondary=False):
+        return ldap_config._get_ldap_agent(self, bind, secondary)
 
     def _predefined_filters(self):
         return sorted(self.objectValues([query.Query.meta_type]),

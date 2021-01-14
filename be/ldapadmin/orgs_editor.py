@@ -34,8 +34,10 @@ from be.ldapadmin.db_agent import OrgRenameError, editable_org_fields
 from be.ldapadmin.constants import NETWORK_NAME, USER_INFO_KEYS
 from be.ldapadmin.countries import get_country, get_country_options
 from be.ldapadmin.ui_common import extend_crumbs, CommonTemplateLogic
-from be.ldapadmin.ui_common import load_template, SessionMessages
+from be.ldapadmin.ui_common import SessionMessages
 from be.ldapadmin.ui_common import TemplateRenderer
+from be.ldapadmin.logic_common import _is_authenticated, logged_in_user
+from be.ldapadmin.logic_common import load_template
 from be.ldapadmin.schema import user_info_schema
 
 
@@ -86,19 +88,6 @@ del user_info_edit_schema['last_name']
 
 def _set_session_message(request, msg_type, msg):
     SessionMessages(request, SESSION_MESSAGES).add(msg_type, msg)
-
-
-def _is_authenticated(request):
-    return ('Authenticated' in request.AUTHENTICATED_USER.getRoles())
-
-
-def logged_in_user(request):
-    user_id = ''
-    if _is_authenticated(request):
-        user = request.get('AUTHENTICATED_USER', '')
-        user_id = user.getId()
-
-    return user_id
 
 
 class OrganisationsEditor(SimpleItem, PropertyManager):
@@ -158,10 +147,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/manage_edit')
 
     def _get_ldap_agent(self, bind=True, secondary=False):
-        agent = ldap_config.ldap_agent_with_config(self._config, bind,
-                                                   secondary=secondary)
-        agent._author = logged_in_user(self.REQUEST)
-        return agent
+        return ldap_config._get_ldap_agent(self, bind, secondary)
 
     security.declareProtected(view, 'index_html')
 

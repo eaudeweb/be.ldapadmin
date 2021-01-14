@@ -34,6 +34,7 @@ from be.ldapadmin.schema import user_info_schema, _uid_node, _password_node
 from be.ldapadmin.constants import NETWORK_NAME
 from be.ldapadmin.help_messages import help_messages
 from be.ldapadmin.logic_common import _session_pop, _create_plain_message
+from be.ldapadmin.logic_common import logged_in_user
 from be.ldapadmin.ui_common import NaayaViewPageTemplateFile
 from be.ldapadmin import ldap_config
 from be.ldapadmin.db_agent import NameAlreadyExists, EmailAlreadyExists
@@ -42,7 +43,7 @@ from be.ldapadmin.countries import get_country_options
 from be.ldapadmin.import_export import excel_headers_to_object
 from be.ldapadmin.import_export import generate_excel
 from be.ldapadmin.import_export import set_response_attachment
-from be.ldapadmin.ui_common import CommonTemplateLogic   # load_template,
+from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import SessionMessages, TemplateRenderer
 from be.ldapadmin.ui_common import extend_crumbs, TemplateRendererNoWrap
 from be.ldapadmin.constants import ADDR_FROM, HELPDESK_EMAIL
@@ -126,10 +127,6 @@ def manage_add_users_admin(parent, id, REQUEST=None):
         REQUEST.RESPONSE.redirect(parent.absolute_url() + '/manage_workspace')
 
 
-def _is_authenticated(request):
-    return ('Authenticated' in request.AUTHENTICATED_USER.getRoles())
-
-
 def get_users_by_ldap_dump():
     DB_FILE = os.path.join(LDAP_DISK_STORAGE, LDAP_DB_NAME)
     if not os.path.exists(DB_FILE):
@@ -174,16 +171,6 @@ def _set_session_message(request, msg_type, msg):
     SessionMessages(request, SESSION_MESSAGES).add(msg_type, msg)
 
 
-def logged_in_user(request):
-    user_id = ''
-    if _is_authenticated(request):
-        user = request.get('AUTHENTICATED_USER', '')
-        if user:
-            user_id = user.getId()
-
-    return user_id
-
-
 # this class should be called UsersEditor, similar to OrganisationsEditor
 # and RolesEditor. But the name UsersEditor is already used by the
 # class which lets users edit their own profile info.
@@ -225,13 +212,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         return stack
 
     def _get_ldap_agent(self, bind=True, secondary=False):
-        agent = ldap_config.ldap_agent_with_config(self._config, bind,
-                                                   secondary=secondary)
-        try:
-            agent._author = logged_in_user(self.REQUEST)
-        except AttributeError:
-            agent._author = "System user"
-        return agent
+        return ldap_config._get_ldap_agent(self, bind, secondary)
 
     def checkPermissionZopeManager(self):
         """ Returns True if user has the manager role in Zope"""
@@ -407,7 +388,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             "zpt/users/email_registration_confirmation.zpt",
             **options)
 
-    security.declareProtected(ldap_edit_users, 'create_users')
+    security.declareProtected(ldap_edit_users, 'create_user')
 
     def create_user(self, REQUEST):
         """ view """

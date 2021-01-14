@@ -18,6 +18,7 @@ import logging
 from be.ldapadmin.constants import NETWORK_NAME, ADDR_FROM
 from be.ldapadmin.schema import user_info_schema
 from be.ldapadmin import ldap_config
+from be.ldapadmin.logic_common import logged_in_user, load_template
 
 
 user_info_schema = user_info_schema.clone()
@@ -30,19 +31,6 @@ log = logging.getLogger(__name__)
 
 WIDTH = 128
 HEIGHT = 192
-
-
-def _is_authenticated(request):
-    return ('Authenticated' in request.AUTHENTICATED_USER.getRoles())
-
-
-def logged_in_user(request):
-    user_id = ''
-    if _is_authenticated(request):
-        user = request.get('AUTHENTICATED_USER', '')
-        user_id = user.getId()
-
-    return user_id
 
 
 manage_addUsersEditor_html = PageTemplateFile('zpt/add', globals())
@@ -96,22 +84,11 @@ def _get_user_password(request):
     return request.AUTHENTICATED_USER.__
 
 
-def _get_user_id(request):
-    return request.AUTHENTICATED_USER.getId()
-
-
 def _is_logged_in(request):
-    if _get_user_id(request) is None:
+    if logged_in_user(request) is None:
         return False
     else:
         return True
-
-
-def load_template(name, _memo={}):
-    if name not in _memo:
-        from zope.pagetemplate.pagetemplatefile import PageTemplateFile
-        _memo[name] = PageTemplateFile(name, globals())
-    return _memo[name]
 
 
 class UsersEditor(SimpleItem, PropertyManager):
@@ -158,14 +135,7 @@ class UsersEditor(SimpleItem, PropertyManager):
         :param bind: bool signifying if the agent will authenticate on server
         :param secondary: use secondary user credentials, different permission
         """
-        agent = ldap_config.ldap_agent_with_config(self._config, bind,
-                                                   secondary=secondary)
-        try:
-            agent._author = logged_in_user(self.REQUEST)
-        except AttributeError:
-            agent._author = "System user"
-
-        return agent
+        return ldap_config._get_ldap_agent(self, bind, secondary)
 
     _zope2_wrapper = PageTemplateFile('zpt/zope2_wrapper.zpt', globals())
 
@@ -198,7 +168,7 @@ class UsersEditor(SimpleItem, PropertyManager):
         }
         if _is_logged_in(REQUEST):
             agent = self._get_ldap_agent(bind=True)
-            user_id = _get_user_id(REQUEST)
+            user_id = logged_in_user(REQUEST)
             options['user_info'] = agent.user_info(user_id)
         else:
             options['user_info'] = None
@@ -220,7 +190,7 @@ class UsersEditor(SimpleItem, PropertyManager):
         '''
 
         agent = self._get_ldap_agent(bind=True)
-        user_id = _get_user_id(REQUEST)
+        user_id = logged_in_user(REQUEST)
 
         errors = _session_pop(REQUEST, SESSION_FORM_ERRORS, {})
         form_data = _session_pop(REQUEST, SESSION_FORM_DATA, None)
@@ -273,7 +243,7 @@ class UsersEditor(SimpleItem, PropertyManager):
 
     def edit_account(self, REQUEST):
         """ view """
-        user_id = _get_user_id(REQUEST)
+        user_id = logged_in_user(REQUEST)
 
         user_form = deform.Form(user_info_schema)
 
@@ -289,8 +259,7 @@ class UsersEditor(SimpleItem, PropertyManager):
             msg = u"Please correct the errors below and try again."
             _set_session_message(REQUEST, 'error', msg)
         else:
-            agent = self._get_ldap_agent(bind=True, write=True)
-            agent.bind_user(user_id, _get_user_password(REQUEST))
+            agent = self._get_ldap_agent(bind=True)
 
             with agent.new_action():
                 # make a check if user is changing the organisation
@@ -354,7 +323,7 @@ class UsersEditor(SimpleItem, PropertyManager):
             return REQUEST.RESPONSE.redirect(self.absolute_url() + '/')
 
         return self._render_template('zpt/change_password.zpt',
-                                     user_id=_get_user_id(REQUEST),
+                                     user_id=logged_in_user(REQUEST),
                                      base_url=self.absolute_url(),
                                      **_get_session_messages(REQUEST))
 
@@ -363,7 +332,7 @@ class UsersEditor(SimpleItem, PropertyManager):
     def change_password(self, REQUEST):
         """ view """
         form = REQUEST.form
-        user_id = _get_user_id(REQUEST)
+        user_id = logged_in_user(REQUEST)
         agent = self._get_ldap_agent(bind=True, write=True)
         user_info = agent.user_info(user_id)
 
@@ -443,7 +412,7 @@ class UsersEditor(SimpleItem, PropertyManager):
         """ view """
         if not _is_logged_in(REQUEST):
             return REQUEST.RESPONSE.redirect(self.absolute_url() + '/')
-        user_id = _get_user_id(REQUEST)
+        user_id = logged_in_user(REQUEST)
         agent = self._get_ldap_agent(bind=True)
 
         if agent.get_profile_picture(user_id):
@@ -451,7 +420,7 @@ class UsersEditor(SimpleItem, PropertyManager):
         else:
             has_image = False
         return self._render_template('zpt/profile_picture.zpt',
-                                     user_id=_get_user_id(REQUEST),
+                                     user_id=logged_in_user(REQUEST),
                                      base_url=self.absolute_url(),
                                      has_current_image=has_image,
                                      here=self,
@@ -466,7 +435,7 @@ class UsersEditor(SimpleItem, PropertyManager):
         image_file = REQUEST.form.get('image_file', None)
         if image_file:
             picture_data = image_file.read()
-            user_id = _get_user_id(REQUEST)
+            user_id = logged_in_user(REQUEST)
             agent = self._get_ldap_agent(bind=True, write=True)
             try:
                 password = _get_user_password(REQUEST)
@@ -499,7 +468,7 @@ class UsersEditor(SimpleItem, PropertyManager):
         Assumes picture is available in LDAP.
 
         """
-        user_id = _get_user_id(REQUEST)
+        user_id = logged_in_user(REQUEST)
         agent = self._get_ldap_agent(bind=True)
         photo = agent.get_profile_picture(user_id)
         REQUEST.RESPONSE.setHeader('Content-Type', 'image/jpeg')
@@ -509,7 +478,7 @@ class UsersEditor(SimpleItem, PropertyManager):
 
     def remove_picture(self, REQUEST):
         """ Removes existing profile picture for loggedin user """
-        user_id = _get_user_id(REQUEST)
+        user_id = logged_in_user(REQUEST)
         agent = self._get_ldap_agent(bind=True, write=True)
         try:
             password = _get_user_password(REQUEST)

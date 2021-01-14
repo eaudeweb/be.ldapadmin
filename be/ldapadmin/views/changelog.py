@@ -38,8 +38,10 @@ class BaseActionDetails(BrowserView):
         return u"%s (%s)" % (user_info['full_name'], entry['author'])
 
     def _get_ldap_agent(self):
-        return factories.agent_from_uf(
-            self.context.restrictedTraverse("/acl_users"))
+        # in Plone without the leading slash, since it will match the root acl
+        # user_folder = self.context.restrictedTraverse("acl_users")
+        user_folder = self.context.restrictedTraverse("/acl_users")
+        return factories.agent_from_uf(user_folder)
 
     def merge(self, roles):
         """ Merge the entries so that the only the leaf roles are displayed

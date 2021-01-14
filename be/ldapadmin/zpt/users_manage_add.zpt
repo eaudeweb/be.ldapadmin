@@ -7,7 +7,7 @@
     }
 </style>
 
-<h2>Add <span tal:replace="common/network_name" /> users admin</h2>
+<h2>Add users admin</h2>
 
 <form action="manage_add_users_admin" method="post"
       name="add-users-admin" class="add-users-admin"

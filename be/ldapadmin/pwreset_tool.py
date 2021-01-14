@@ -23,8 +23,7 @@ from be.ldapadmin.constants import NETWORK_NAME, ADDR_FROM
 from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import SessionMessages
 from be.ldapadmin.ui_common import TemplateRenderer
-from be.ldapadmin.ui_common import load_template
-from be.ldapadmin.logic_common import _create_plain_message
+from be.ldapadmin.logic_common import _create_plain_message, load_template
 from be.ldapadmin.users_admin import ldap_edit_users
 
 
@@ -119,8 +118,8 @@ class PasswordResetTool(SimpleItem):
         self._config.update(new_config)
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/manage_edit')
 
-    def _get_ldap_agent(self, bind=True):
-        return ldap_config.ldap_agent_with_config(self._config, bind)
+    def _get_ldap_agent(self, bind=True, secondary=False):
+        return ldap_config._get_ldap_agent(self, bind, secondary)
 
     def _predefined_filters(self):
         return sorted(self.objectValues([query.Query.meta_type]),

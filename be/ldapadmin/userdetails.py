@@ -4,7 +4,6 @@ import json
 import logging
 from datetime import datetime, timedelta
 from zope.component import getMultiAdapter
-from zope.pagetemplate.pagetemplatefile import PageTemplateFile as Z3Template
 from AccessControl import ClassSecurityInfo  # , Unauthorized
 from AccessControl.Permissions import view_management_screens
 from Acquisition import Implicit
@@ -16,6 +15,7 @@ from persistent.mapping import PersistentMapping
 from zExceptions import NotFound
 from be.ldapadmin import ldap_config
 from be.ldapadmin.constants import NETWORK_NAME
+from be.ldapadmin.logic_common import _is_authenticated, load_template
 
 ldap_edit_users = 'LDAP edit users'
 
@@ -38,16 +38,6 @@ def manage_add_userdetails(parent, id, REQUEST=None):
 
     if REQUEST is not None:
         REQUEST.RESPONSE.redirect(parent.absolute_url() + '/manage_workspace')
-
-
-def _is_authenticated(request):
-    return ('Authenticated' in request.AUTHENTICATED_USER.getRoles())
-
-
-def load_template(name, _memo={}):
-    if name not in _memo:
-        _memo[name] = Z3Template(name, globals())
-    return _memo[name]
 
 
 zope2_wrapper = PageTemplateFile('zpt/zope2_wrapper.zpt', globals())
@@ -118,15 +108,6 @@ class CommonTemplateLogic(object):
         return NETWORK_NAME
 
 
-def logged_in_user(request):
-    user_id = ''
-    if _is_authenticated(request):
-        user = request.get('AUTHENTICATED_USER', '')
-        user_id = str(user.getId())
-
-    return user_id
-
-
 class UserDetails(SimpleItem):
     meta_type = 'LDAP User Details'
     security = ClassSecurityInfo()
@@ -162,13 +143,7 @@ class UserDetails(SimpleItem):
         self._config = PersistentMapping(config)
 
     def _get_ldap_agent(self, bind=True, secondary=False):
-        agent = ldap_config.ldap_agent_with_config(self._config, bind,
-                                                   secondary=secondary)
-        try:
-            agent._author = logged_in_user(self.REQUEST)
-        except AttributeError:
-            agent._author = "System user"
-        return agent
+        return ldap_config._get_ldap_agent(self, bind, secondary)
 
     def _prepare_user_page(self, uid):
         """Shared by index_html and simple_profile"""

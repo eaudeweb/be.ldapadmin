@@ -5,6 +5,8 @@ import os
 from App.config import getConfiguration
 
 cfg = getConfiguration()
+if not hasattr(cfg, 'environment'):
+    cfg.environment = {}
 cfg.environment.update(os.environ)
 
 # constant defined in env
@@ -24,8 +26,16 @@ LDAP_DB_NAME = getattr(cfg, 'environment', {}).get(
     'LDAP_DB_NAME', os.environ.get('LDAP_DB_NAME', ''))
 
 USER_INFO_KEYS = [
-    'status', 'last_name', 'uid', 'reasonToCreate', 'full_name', 'id',
+    'status', 'last_name', 'uid', 'full_name', 'id',
     'first_name', 'organisation', 'department', 'email', 'metadata', 'dn',
     'fax', 'postal_address', 'phone', 'employeeNumber', 'modifyTimestamp',
     'mobile', 'full_name_native', 'pwdChangedTime', 'url', 'createTimestamp',
     'job_title', 'search_helper']
+
+# some keys are not present in the Circa scheme
+# USER_INFO_KEYS = [
+#    'status', 'last_name', 'uid', 'reasonToCreate', 'full_name', 'id',
+#    'first_name', 'organisation', 'department', 'email', 'metadata', 'dn',
+#    'fax', 'postal_address', 'phone', 'employeeNumber', 'modifyTimestamp',
+#    'mobile', 'full_name_native', 'pwdChangedTime', 'url', 'createTimestamp',
+#    'job_title', 'search_helper']
