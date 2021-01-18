@@ -329,7 +329,6 @@ class UsersEditor(SimpleItem, PropertyManager):
                                              '/change_password_html')
 
         try:
-            agent.bind_user(user_id, form['old_password'])
             agent.set_user_password(user_id, form['old_password'],
                                     form['new_password'])
 
