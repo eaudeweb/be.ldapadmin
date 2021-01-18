@@ -5,8 +5,7 @@ from Products.LDAPUserFolder.LDAPUser import LDAPUser
 
 def agent_from_uf(ldap_folder, **config):
     """ Get agent instance based on acl_users LDAP User Folder"""
-    server = ldap_folder._delegate._servers[0]
-    config['ldap_server'] = "%s:%s" % (server['host'], server['port'])
+    config['ldap_server'] = ldap_folder.getCurrentServer().split('//')[1]
     try:
         config['users_dn'] = ldap_folder.users_base
         config['roles_dn'] = ldap_folder.groups_base

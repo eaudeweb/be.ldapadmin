@@ -1112,7 +1112,7 @@ class UsersDB(object):
         old_records.append(record)
         # Circa doesn't support changelog for now
         # (the registeredAddress fiedld is not present)
-        # self._save_metadata(rec_dn, old_records)
+        self._save_metadata(rec_dn, old_records)
 
     def _get_email_for_disabled_user(self, metadata):
         email = None
