@@ -1,24 +1,27 @@
-from AccessControl import ClassSecurityInfo
+''' user profile editor '''
+
+from datetime import datetime
+from email.mime.text import MIMEText
+import logging
+from zope.component import getUtility
+from zope.component.interfaces import ComponentLookupError
+from zope.sendmail.interfaces import IMailDelivery
+from AccessControl import ClassSecurityInfo, Unauthorized
 from AccessControl.Permissions import view, view_management_screens
 from App.class_init import InitializeClass
 from OFS.PropertyManager import PropertyManager
 from OFS.SimpleItem import SimpleItem
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
-from datetime import datetime
-from email.mime.text import MIMEText
 from image_processor import scale_to
 from ldap import CONSTRAINT_VIOLATION, NO_SUCH_OBJECT, SCOPE_BASE
 from persistent.mapping import PersistentMapping
-from zope.component import getUtility
-from zope.component.interfaces import ComponentLookupError
-from zope.sendmail.interfaces import IMailDelivery
 import deform
 import ldap
-import logging
 from be.ldapadmin.constants import NETWORK_NAME, ADDR_FROM
 from be.ldapadmin.schema import user_info_schema
 from be.ldapadmin import ldap_config
-from be.ldapadmin.logic_common import logged_in_user, load_template
+from be.ldapadmin.logic_common import _is_authenticated, logged_in_user
+from be.ldapadmin.logic_common import load_template
 
 
 user_info_schema = user_info_schema.clone()
@@ -78,17 +81,6 @@ def _session_pop(request, name, default):
         return value
     else:
         return default
-
-
-def _get_user_password(request):
-    return request.AUTHENTICATED_USER.__
-
-
-def _is_logged_in(request):
-    if logged_in_user(request) is None:
-        return False
-    else:
-        return True
 
 
 class UsersEditor(SimpleItem, PropertyManager):
@@ -166,7 +158,7 @@ class UsersEditor(SimpleItem, PropertyManager):
         options = {
             'base_url': self.absolute_url(),
         }
-        if _is_logged_in(REQUEST):
+        if _is_authenticated(REQUEST):
             agent = self._get_ldap_agent(bind=True)
             user_id = logged_in_user(REQUEST)
             options['user_info'] = agent.user_info(user_id)
@@ -179,15 +171,13 @@ class UsersEditor(SimpleItem, PropertyManager):
 
     def edit_account_html(self, REQUEST):
         """ view """
-        if not _is_logged_in(REQUEST):
-            return REQUEST.RESPONSE.redirect(self.absolute_url() + '/')
+        if not _is_authenticated(REQUEST):
+            raise Unauthorized
 
         agent = self._get_ldap_agent()
-        '''
         orgs = agent.all_organisations()
         orgs = [{'id': k, 'text': v['name'], 'text_native': v['name_native'],
                  'ldap': True} for k, v in orgs.items()]
-        '''
 
         agent = self._get_ldap_agent(bind=True)
         user_id = logged_in_user(REQUEST)
@@ -197,7 +187,6 @@ class UsersEditor(SimpleItem, PropertyManager):
         if form_data is None:
             form_data = agent.user_info(user_id)
 
-        '''
         user_orgs = list(agent.user_organisations(user_id))
         if not user_orgs:
             org = form_data.get('organisation')
@@ -209,10 +198,8 @@ class UsersEditor(SimpleItem, PropertyManager):
             org_id = agent._org_id(org)
             form_data['organisation'] = org_id
         orgs.sort(lambda x, y: cmp(x['text'], y['text']))
-        '''
 
         choices = [('-', '-')]
-        '''
         for org in orgs:
             if org['ldap']:
                 if org['text_native']:
@@ -223,7 +210,6 @@ class UsersEditor(SimpleItem, PropertyManager):
             else:
                 label = org['text']
             choices.append((org['id'], label))
-        '''
 
         schema = user_info_schema.clone()
         widget = deform.widget.SelectWidget(values=choices)
@@ -319,8 +305,8 @@ class UsersEditor(SimpleItem, PropertyManager):
 
     def change_password_html(self, REQUEST):
         """ view """
-        if not _is_logged_in(REQUEST):
-            return REQUEST.RESPONSE.redirect(self.absolute_url() + '/')
+        if not _is_authenticated(REQUEST):
+            raise Unauthorized
 
         return self._render_template('zpt/change_password.zpt',
                                      user_id=logged_in_user(REQUEST),
@@ -333,7 +319,7 @@ class UsersEditor(SimpleItem, PropertyManager):
         """ view """
         form = REQUEST.form
         user_id = logged_in_user(REQUEST)
-        agent = self._get_ldap_agent(bind=True, write=True)
+        agent = self._get_ldap_agent(bind=True)
         user_info = agent.user_info(user_id)
 
         if form['new_password'] != form['new_password_confirm']:
@@ -410,8 +396,8 @@ class UsersEditor(SimpleItem, PropertyManager):
 
     def profile_picture_html(self, REQUEST):
         """ view """
-        if not _is_logged_in(REQUEST):
-            return REQUEST.RESPONSE.redirect(self.absolute_url() + '/')
+        if not _is_authenticated(REQUEST):
+            raise Unauthorized
         user_id = logged_in_user(REQUEST)
         agent = self._get_ldap_agent(bind=True)
 
@@ -430,16 +416,14 @@ class UsersEditor(SimpleItem, PropertyManager):
 
     def profile_picture(self, REQUEST):
         """ view """
-        if not _is_logged_in(REQUEST):
-            return REQUEST.RESPONSE.redirect(self.absolute_url() + '/')
+        if not _is_authenticated(REQUEST):
+            raise Unauthorized
         image_file = REQUEST.form.get('image_file', None)
         if image_file:
             picture_data = image_file.read()
             user_id = logged_in_user(REQUEST)
-            agent = self._get_ldap_agent(bind=True, write=True)
+            agent = self._get_ldap_agent(bind=True)
             try:
-                password = _get_user_password(REQUEST)
-                agent.bind_user(user_id, password)
                 color = (255, 255, 255)
                 picture_data = scale_to(picture_data, WIDTH, HEIGHT, color)
                 success = agent.set_user_picture(user_id, picture_data)
@@ -479,10 +463,8 @@ class UsersEditor(SimpleItem, PropertyManager):
     def remove_picture(self, REQUEST):
         """ Removes existing profile picture for loggedin user """
         user_id = logged_in_user(REQUEST)
-        agent = self._get_ldap_agent(bind=True, write=True)
+        agent = self._get_ldap_agent(bind=True)
         try:
-            password = _get_user_password(REQUEST)
-            agent.bind_user(user_id, password)
             agent.set_user_picture(user_id, None)
         except Exception:
             _set_session_message(REQUEST, 'error', "Something went wrong.")

@@ -109,12 +109,6 @@ class PasswordResetTool(SimpleItem):
         form = REQUEST.form
         new_config = ldap_config.read_form(form, edit=True)
 
-        new_config['legacy_ldap_server'] = form.get('legacy_ldap_server', '')
-        new_config['legacy_admin_dn'] = form.get('legacy_admin_dn', '')
-        new_config['legacy_admin_pw'] = form.get('legacy_admin_pw', '')
-        if not new_config['legacy_admin_pw']:
-            del new_config['legacy_admin_pw']  # don't overwrite
-
         self._config.update(new_config)
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/manage_edit')
 

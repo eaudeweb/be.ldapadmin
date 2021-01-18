@@ -657,7 +657,7 @@ class UsersDB(object):
         """
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organizationGroup)(pendingUniqueMember=%s))',
+            '(&(objectClass=interestgroup)(pendingUniqueMember=%s))',
             (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
@@ -1110,7 +1110,9 @@ class UsersDB(object):
             'action_id': getattr(self, '_v_action_id', generate_action_id()),
         }
         old_records.append(record)
-        self._save_metadata(rec_dn, old_records)
+        # Circa doesn't support changelog for now
+        # (the registeredAddress fiedld is not present)
+        # self._save_metadata(rec_dn, old_records)
 
     def _get_email_for_disabled_user(self, metadata):
         email = None
@@ -1252,7 +1254,7 @@ class UsersDB(object):
             ('cn', [org_id]),
             ('objectClass', [
                 'top', 'groupOfUniqueNames',
-                'organizationGroup', 'labeledURIObject',
+                'interestgroup', 'labeledURIObject',
                 'hierarchicalGroup'
             ]
             ),
@@ -1747,7 +1749,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def search_org(self, name):
         query = name.lower().encode(self._encoding)
-        pattern = '(&(objectClass=organizationGroup)(|(cn=*%s*)(o=*%s*)))'
+        pattern = '(&(objectClass=interestgroup)(|(cn=*%s*)(o=*%s*)))'
         query_filter = ldap.filter.filter_format(pattern, (query, query))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
@@ -2234,7 +2236,7 @@ class UsersDB(object):
     def _search_user_in_orgs(self, user_id):
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organizationGroup)(uniqueMember=%s))', (user_dn,))
+            '(&(objectClass=interestgroup)(uniqueMember=%s))', (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query_filter, attrlist=())
@@ -2243,7 +2245,7 @@ class UsersDB(object):
     def orgs_for_user(self, user_id):
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organizationGroup)(uniqueMember=%s))', (user_dn,))
+            '(&(objectClass=interestgroup)(uniqueMember=%s))', (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query_filter, attrlist=('o',))
@@ -2253,7 +2255,7 @@ class UsersDB(object):
     def all_organisations(self):
         result = self.conn.search_s(
             self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
-            filterstr='(objectClass=organizationGroup)',
+            filterstr='(objectClass=interestgroup)',
             attrlist=('o', 'c', 'physicalDeliveryOfficeName'))
 
         return dict((self._org_id(dn),
