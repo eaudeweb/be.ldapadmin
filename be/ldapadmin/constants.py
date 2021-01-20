@@ -24,6 +24,8 @@ LDAP_DISK_STORAGE = getattr(cfg, 'environment', {}).get(
     'LDAP_DISK_STORAGE', os.environ.get('LDAP_DISK_STORAGE', ''))
 LDAP_DB_NAME = getattr(cfg, 'environment', {}).get(
     'LDAP_DB_NAME', os.environ.get('LDAP_DB_NAME', ''))
+LDAP_PROTOCOL = getattr(cfg, 'environment', {}).get(
+    'LDAP_PROTOCOL', os.environ.get('PROTOCOL', 'ldap'))
 
 USER_INFO_KEYS = [
     'status', 'last_name', 'uid', 'full_name', 'id',

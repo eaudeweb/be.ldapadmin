@@ -140,9 +140,9 @@
                         name string:${field/name}:utf8:ustring"
                         tal:content="field/value"></textarea>
                     <select tal:condition="is_select"
-                        tal:attributes="id field_id; 
+                        tal:attributes="id field_id;
                         name string:${field/name}:utf8:ustring"
-                        >
+                        multiple >
                         <tal:def tal:define="choices python:field['widget'].values">
                             <option 
                                 tal:repeat="ch choices" 

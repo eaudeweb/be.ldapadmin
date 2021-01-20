@@ -18,13 +18,12 @@ from AccessControl.unauthorized import Unauthorized
 from App.class_init import InitializeClass
 from App.config import getConfiguration
 import deform
-from deform.widget import SelectWidget
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 from OFS.PropertyManager import PropertyManager
 from OFS.SimpleItem import SimpleItem
 from ldap import NO_SUCH_OBJECT
 from ldap import INVALID_DN_SYNTAX
-from be.ldapadmin.logic_common import _session_pop, _create_plain_message
+from be.ldapadmin.logic_common import _create_plain_message
 from persistent.mapping import PersistentMapping
 import ldap
 import ldap_config
@@ -870,127 +869,6 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         agent = self._get_ldap_agent()
         org_members = agent.members_in_org(org_id)
         return member_id in org_members
-
-    def edit_member(self, REQUEST):
-        """ Update profile of a member of the organisation """
-        user = REQUEST.AUTHENTICATED_USER
-        org_id = REQUEST.form.get('org_id')
-        user_id = REQUEST.form.get('user_id')
-        if not (org_id and user_id):
-            if org_id:
-                _set_session_message(REQUEST, 'error',
-                                     "The user id is mandatory")
-                return REQUEST.RESPONSE.redirect(self.absolute_url() +
-                                                 '/members_html?id=' + org_id)
-            else:
-                _set_session_message(REQUEST, 'error',
-                                     "The organisation id is mandatory")
-                return REQUEST.RESPONSE.redirect(self.absolute_url())
-        if not self.can_edit_members(user, org_id, user_id):
-            _set_session_message(REQUEST, 'error',
-                                 "You are not allowed to edit user %s" %
-                                 user_id)
-            return REQUEST.RESPONSE.redirect(self.absolute_url() +
-                                             '/members_html?id=' + org_id)
-        errors = _session_pop(REQUEST, SESSION_FORM_ERRORS, {})
-        agent = self._get_ldap_agent(bind=True)
-        member = agent.user_info(user_id)
-        # message
-        form_data = _session_pop(REQUEST, SESSION_FORM_DATA, None)
-        if form_data is None:
-            form_data = member
-            form_data['user_id'] = member['uid']
-
-        orgs = agent.all_organisations()
-        orgs = [{'id': k, 'text': v['name'], 'ldap': True} for
-                k, v in orgs.items()]
-        user_orgs = list(agent.user_organisations(user_id))
-        if not user_orgs:
-            org = form_data['organisation']
-            if org:
-                orgs.append({'id': org, 'text': org, 'ldap': False})
-        else:
-            org = user_orgs[0]
-            org_id = agent._org_id(org)
-            form_data['organisation'] = org_id
-        orgs.sort(lambda x, y: cmp(x['text'], y['text']))
-        schema = user_info_edit_schema.clone()
-        choices = [('-', '-')]
-        for org in orgs:
-            if org['ldap']:
-                label = u"%s (%s)" % (org['text'], org['id'])
-            else:
-                label = org['text']
-            choices.append((org['id'], label))
-        widget = SelectWidget(values=choices)
-        schema['organisation'].widget = widget
-
-        options = {'user': member,
-                   'form_data': form_data,
-                   'schema': schema,
-                   'errors': errors,
-                   'org_id': org_id,
-                   }
-        return self._render_template('zpt/orgs_edit_member.zpt', **options)
-
-    def edit_member_action(self, REQUEST):
-        """ view """
-        agent = self._get_ldap_agent()
-        org_id = REQUEST.form['org_id']
-        user_id = REQUEST.form['user_id']
-        user = REQUEST.AUTHENTICATED_USER
-
-        if not self.can_edit_members(user, org_id, user_id):
-            _set_session_message(REQUEST, 'error',
-                                 "You are not allowed to edit user %s" %
-                                 user_id)
-            REQUEST.RESPONSE.redirect(self.absolute_url() +
-                                      '/members_html?id=' + org_id)
-            return None
-
-        user_form = deform.Form(user_info_edit_schema)
-
-        try:
-            new_info = user_form.validate(REQUEST.form.items())
-        except deform.ValidationFailure as e:
-            session = REQUEST.SESSION
-            errors = {}
-            for field_error in e.error.children:
-                errors[field_error.node.name] = field_error.msg
-            session[SESSION_FORM_ERRORS] = errors
-            session[SESSION_FORM_DATA] = dict(REQUEST.form)
-            msg = u"Please correct the errors below and try again."
-            _set_session_message(REQUEST, 'error', msg)
-        else:
-            agent = self._get_ldap_agent(bind=True, secondary=True)
-
-            old_info = agent.user_info(user_id)
-            new_info.update(first_name=old_info['first_name'],
-                            last_name=old_info['last_name'])
-
-            new_org_id = new_info['organisation']
-            old_org_id = old_info['organisation']
-
-            new_org_id_valid = agent.org_exists(new_org_id)
-
-            # make a check if user is changing the organisation
-            with agent.new_action():
-                if new_org_id != old_org_id:
-                    self._remove_from_all_orgs(agent, user_id)
-                    if new_org_id_valid:
-                        self._add_to_org(agent, new_org_id, user_id)
-
-                agent.set_user_info(user_id, new_info)
-            when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            _set_session_message(REQUEST,
-                                 'message',
-                                 "Profile saved (%s)" % when)
-
-            log.info("%s EDITED USER %s as member of %s",
-                     logged_in_user(REQUEST), user_id, new_org_id)
-
-        REQUEST.RESPONSE.redirect('%s/edit_member?user_id=%s&org_id=%s' %
-                                  (self.absolute_url(), user_id, org_id))
 
     def _add_to_org(self, agent, org_id, user_id):
         try:

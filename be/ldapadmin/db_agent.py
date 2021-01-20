@@ -12,7 +12,7 @@ import ldap.filter
 from ldap.ldapobject import LDAPObject
 from ldap.resiter import ResultProcessor
 from _backport import wraps
-from be.ldapadmin.constants import BASE_DOMAIN
+from be.ldapadmin.constants import BASE_DOMAIN, LDAP_PROTOCOL
 
 log = logging.getLogger(__name__)
 
@@ -222,17 +222,14 @@ class UsersDB(object):
             if info[1] == '389':
                 server = info[0]
         ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
-        conn = StreamingLDAPObject('ldaps://' + server)
+        if LDAP_PROTOCOL == 'ldaps':
+            conn = StreamingLDAPObject('ldaps://' + server)
+        else:
+            conn = ldap.initialize('ldap://' + server)
         conn.protocol_version = ldap.VERSION3
         conn.timeout = LDAP_TIMEOUT
 
-        try:
-            conn.whoami_s()
-        except ldap.SERVER_DOWN:
-            conn = ldap.initialize('ldap://' + server)
-            conn.protocol_version = ldap.VERSION3
-            conn.timeout = LDAP_TIMEOUT
-            conn.whoami_s()
+        conn.whoami_s()
 
         return conn
 
@@ -1272,7 +1269,8 @@ class UsersDB(object):
 
         assert result[:2] == (ldap.RES_ADD, [])
 
-        self.add_change_record(org_dn, CREATED_ORG, {})
+        # TODO re-enable org changelog
+        # self.add_change_record(org_dn, CREATED_ORG, {})
 
     @log_ldap_exceptions
     def set_org_info(self, org_id, new_info):
@@ -1287,7 +1285,8 @@ class UsersDB(object):
         result = self.conn.modify_s(org_dn, changes)
         assert result[:2] == (ldap.RES_MODIFY, [])
 
-        self.add_change_record(org_dn, EDITED_ORG, {})
+        # TODO re-enable org changelog
+        # self.add_change_record(org_dn, EDITED_ORG, {})
 
     @log_ldap_exceptions
     def members_in_org(self, org_id):
@@ -1318,8 +1317,9 @@ class UsersDB(object):
         for (user_id, user_dn) in users:
             self.add_change_record(user_dn, ADD_PENDING_TO_ORG,
                                    {'organisation': org_id})
-            self.add_change_record(org_dn, ADDED_PENDING_MEMBER_TO_ORG,
-                                   {'member': user_id})
+            # TODO re-enable org changelog
+            # self.add_change_record(org_dn, ADDED_PENDING_MEMBER_TO_ORG,
+            #                       {'member': user_id})
 
         user_dn_list = [user_dn for (user_id, user_dn) in users]
         changes = ((ldap.MOD_ADD, 'pendingUniqueMember', user_dn_list), )
@@ -1340,8 +1340,9 @@ class UsersDB(object):
             self.add_change_record(user_dn, REMOVED_PENDING_FROM_ORG, {
                 'organisation': org_id,
             })
-            self.add_change_record(org_dn, REMOVED_PENDING_MEMBER_FROM_ORG,
-                                   {'member': user_id})
+            # TODO re-enable org changelog
+            # self.add_change_record(org_dn, REMOVED_PENDING_MEMBER_FROM_ORG,
+            #                       {'member': user_id})
 
         user_dn_list = [user_dn for (user_id, user_dn) in users]
         changes = ((ldap.MOD_DELETE, 'pendingUniqueMember', user_dn_list), )
@@ -1375,13 +1376,14 @@ class UsersDB(object):
         # record this change in the user's log
         users = [(user_id, str(self._user_dn(user_id)))
                  for user_id in user_id_list]
-        org_dn = self._org_dn(org_id)
+        # org_dn = self._org_dn(org_id)
 
         for user_id, user_dn in users:
             self.add_change_record(user_dn, ADD_TO_ORG,
                                    {'organisation': org_id})
-            self.add_change_record(org_dn, ADDED_MEMBER_TO_ORG,
-                                   {'member': user_id})
+            # TODO re-enable org changelog
+            # self.add_change_record(org_dn, ADDED_MEMBER_TO_ORG,
+            #                       {'member': user_id})
 
         changes = (
             (ldap.MOD_ADD, 'uniqueMember', [dn for uid, dn in users]),
@@ -1407,8 +1409,9 @@ class UsersDB(object):
             self.add_change_record(user_dn, REMOVED_FROM_ORG, {
                 'organisation': org_id,
             })
-            self.add_change_record(org_dn, REMOVED_MEMBER_FROM_ORG,
-                                   {'member': user_id})
+            # TODO re-enable org changelog
+            # self.add_change_record(org_dn, REMOVED_MEMBER_FROM_ORG,
+            #                       {'member': user_id})
 
         user_dn_list = [user_dn for (user_id, user_dn) in users]
         changes = ((ldap.MOD_DELETE, 'uniqueMember', user_dn_list), )

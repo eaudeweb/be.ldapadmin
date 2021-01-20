@@ -445,10 +445,11 @@ class UsersAdmin(SimpleItem, PropertyManager):
         orgs = [{'id': k, 'text': v['name'], 'text_native': v['name_native'],
                  'ldap':True}
                 for k, v in agent_orgs.items()]
-        org = form_data.get('organisation')
-        if org and not (org in agent_orgs):
-            orgs.append({'id': org, 'text': org, 'text_native': '',
-                         'ldap': False})
+        form_orgs = list(form_data.get('organisation'))
+        for org in form_orgs:
+            if org and not (org in agent_orgs):
+                orgs.append({'id': org, 'text': org, 'text_native': '',
+                             'ldap': False})
         orgs.sort(lambda x, y: cmp(x['text'], y['text']))
         choices = [('-', '-')]
         for org in orgs:
@@ -457,7 +458,10 @@ class UsersAdmin(SimpleItem, PropertyManager):
                     label = u"%s (%s, %s)" % (org['text'], org['text_native'],
                                               org['id'])
                 else:
-                    label = u"%s (%s)" % (org['text'], org['id'])
+                    if org['text']:
+                        label = u"%s (%s)" % (org['text'], org['id'])
+                    else:
+                        label = org['id']
             else:
                 label = org['text']
             choices.append((org['id'], label))
@@ -468,6 +472,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         if 'submit' in REQUEST.form:
             try:
                 user_form = deform.Form(schema)
+                orgs = form_data.pop('organisation')
                 user_info = user_form.validate(form_data.items())
                 user_info['search_helper'] = _transliterate(
                     user_info['first_name'], user_info['last_name'],
@@ -490,11 +495,11 @@ class UsersAdmin(SimpleItem, PropertyManager):
                     except EmailAlreadyExists:
                         errors['email'] = 'This email is alreay registered'
                     else:
-                        new_org_id = user_info['organisation']
-                        new_org_id_valid = agent.org_exists(new_org_id)
+                        for new_org_id in orgs:
+                            new_org_id_valid = agent.org_exists(new_org_id)
 
-                        if new_org_id_valid:
-                            self._add_to_org(agent, new_org_id, user_id)
+                            if new_org_id_valid:
+                                self._add_to_org(agent, new_org_id, user_id)
 
                         send_confirmation = 'send_confirmation' in \
                             form_data.keys()
@@ -576,9 +581,8 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 orgs.append(
                     {'id': org, 'text': org, 'text_native': '', 'ldap': False})
         else:
-            org = user_orgs[0]
-            org_id = agent._org_id(org)
-            form_data['organisation'] = org_id
+            form_data['organisation'] = [
+                agent._org_id(org) for org in user_orgs]
         orgs.sort(lambda x, y: cmp(x['text'], y['text']))
         schema = user_info_edit_schema.clone()
 
@@ -613,7 +617,10 @@ class UsersAdmin(SimpleItem, PropertyManager):
                     label = u"%s (%s, %s)" % (org['text'], org['text_native'],
                                               org['id'])
                 else:
-                    label = u"%s (%s)" % (org['text'], org['id'])
+                    if org['text']:
+                        label = u"%s (%s)" % (org['text'], org['id'])
+                    else:
+                        label = org['id']
             else:
                 label = org['text']
             choices.append((org['id'], label))
@@ -649,6 +656,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         user_form = deform.Form(schema)
 
         try:
+            orgs = REQUEST.form.pop('organisation')
             new_info = user_form.validate(REQUEST.form.items())
         except deform.ValidationFailure as e:
             session = REQUEST.SESSION
@@ -662,9 +670,6 @@ class UsersAdmin(SimpleItem, PropertyManager):
         else:
             agent = self._get_ldap_agent(bind=True)
 
-            new_org_id = new_info['organisation']
-            new_org_id_valid = agent.org_exists(new_org_id)
-
             # make a check if user is changing the organisation
             user_orgs = [agent._org_id(org)
                          for org in list(agent.user_organisations(user_id))]
@@ -675,10 +680,14 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 new_info.get('search_helper', ''))
 
             with agent.new_action():
-                if not (new_org_id in user_orgs):
-                    self._remove_from_all_orgs(agent, user_id)
-                    if new_org_id_valid:
-                        self._add_to_org(agent, new_org_id, user_id)
+                for new_org_id in orgs:
+                    if new_org_id not in user_orgs:
+                        new_org_id_valid = agent.org_exists(new_org_id)
+                        if new_org_id_valid:
+                            # in Circa users can be mebers of several
+                            # organisations
+                            # self._remove_from_all_orgs(agent, user_id)
+                            self._add_to_org(agent, new_org_id, user_id)
 
                 agent.set_user_info(user_id, new_info)
 
@@ -829,7 +838,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
             try:
                 mailer.send(addr_from, [addr_to], message.as_string())
-            except AssertionError:
+            except (ValueError, AssertionError):
                 mailer.send(addr_from, [addr_to], message)
 
         when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

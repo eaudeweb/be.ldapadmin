@@ -104,11 +104,8 @@
                         <tt tal:content="member/id"></tt>
                     </td>
                     <td>
-                        <a tal:condition="common/checkPermissionEditOrganisations"
-                            tal:attributes="href string:edit_member?user_id=${member/id}&org_id=${options/organisation/id}"
+                        <a tal:attributes="href string:/user?uid=${member/id}"
                             tal:content="string:${member/first_name} ${member/last_name}" />
-                        <tal:block condition="not:common/checkPermissionEditOrganisations" 
-                            content="string:${member/first_name} ${member/last_name}"/>
                     </td>
                     <td><span tal:content="member/status" /></td>
                 </tr>
