@@ -114,7 +114,7 @@
           <tal:def tal:define="choices python:field['widget'].values">
               <option
                   tal:repeat="ch choices"
-                  tal:attributes="value python:ch[0]; selected python:ch[0] == field['value']"
+                  tal:attributes="value python:ch[0]; selected python:ch[0] in field['value']"
                   tal:content="python: ch[1]">1</option>
           </tal:def>
       </select>

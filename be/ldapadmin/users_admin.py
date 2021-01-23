@@ -684,10 +684,10 @@ class UsersAdmin(SimpleItem, PropertyManager):
                     if new_org_id not in user_orgs:
                         new_org_id_valid = agent.org_exists(new_org_id)
                         if new_org_id_valid:
-                            # in Circa users can be mebers of several
-                            # organisations
-                            # self._remove_from_all_orgs(agent, user_id)
                             self._add_to_org(agent, new_org_id, user_id)
+                for old_org_id in user_orgs:
+                    if old_org_id not in orgs:
+                        agent.remove_from_org(old_org_id, [user_id])
 
                 agent.set_user_info(user_id, new_info)
 
