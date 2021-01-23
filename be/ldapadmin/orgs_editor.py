@@ -161,7 +161,8 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
             country = countries.get(info['country'])
             if country:
                 orgs.append({'id': org_id,
-                             'name': info['name'],
+                             'name': info['name'] or org_id.title().replace(
+                                 '_', ' '),
                              'country': country['name'],
                              'country_pub_code': country['pub_code']})
         orgs.sort(key=operator.itemgetter('id'))
@@ -391,9 +392,11 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
             return REQUEST.RESPONSE.redirect(self.absolute_url())
         agent = self._get_ldap_agent()
         org_info = agent.org_info(org_id)
+        if not org_info['name']:
+            org_info['name'] = org_id.title().replace('_', ' ')
         options = {
             'organisation': org_info,
-            'country': get_country(org_info['country'])['name'],
+            # 'country': get_country(org_info['country'])['name'],
         }
         self._set_breadcrumbs([('%s Organisation' % org_id, '#')])
         return self._render_template('zpt/orgs_view.zpt', **options)
@@ -949,20 +952,21 @@ def validate_org_info(org_id, org_info, create_mode=False):
     if not name.strip():
         errors['name'] = [VALIDATION_ERRORS['name']]
 
-    phone = org_info['phone']
+    phone = org_info.get('phone')
     if phone and phone_re.match(phone) is None:
         errors['phone'] = [VALIDATION_ERRORS['phone']]
 
-    fax = org_info['fax']
+    fax = org_info.get('fax')
     if fax and phone_re.match(fax) is None:
         errors['fax'] = [VALIDATION_ERRORS['fax']]
 
-    postal_code = org_info['postal_code']
+    postal_code = org_info.get('postal_code')
     if postal_code and postal_code_re.match(postal_code) is None:
         errors['postal_code'] = [VALIDATION_ERRORS['postal_code']]
 
-    country = org_info['country']
-    if not country.strip():
-        errors['country'] = [VALIDATION_ERRORS['country']]
+    # TODO Re-enable Country?
+    # country = org_info.get('country')
+    # if country and not country.strip():
+    #     errors['country'] = [VALIDATION_ERRORS['country']]
 
     return errors

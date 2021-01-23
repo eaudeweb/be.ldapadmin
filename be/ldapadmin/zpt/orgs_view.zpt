@@ -1,4 +1,4 @@
-<div tal:define="org_editor options/context">
+<tal:block define="org_editor options/context">
     <div id="operations" class="right_portlet" tal:define="org_info options/organisation; ">
         <h2>Operations</h2>
         <ul>
@@ -25,77 +25,79 @@
         </ul>
     </div>
 
-    <h1>
-        <tal:block content="options/organisation/name"/>
-        (<tt tal:content="options/organisation/id"/>)
-    </h1>
+    <div>
+      <h1>
+          <tal:block content="options/organisation/name"/>
+          (<tt tal:content="options/organisation/id"/>)
+      </h1>
 
-    <tal:block content="structure common/message_boxes"/>
+      <tal:block content="structure common/message_boxes"/>
 
-    <table tal:define="org_info options/organisation">
+      <table class="details" tal:define="org_info options/organisation">
 
-        <tr>
-            <td>Name:</td>
-            <td tal:content="org_info/name"></td>
-        </tr>
+          <tr>
+              <td>Name:</td>
+              <td tal:content="org_info/name"></td>
+          </tr>
 
-        <tr>
-            <td>Name in national language:</td>
-            <td tal:content="org_info/name_native"></td>
-        </tr>
+          <tr tal:condition="org_info/name_native|nothing">
+              <td>Name in national language:</td>
+              <td tal:content="org_info/name_native"></td>
+          </tr>
 
-        <tr>
-            <td>URL:</td>
-            <td tal:content="org_info/url"></td>
-        </tr>
+          <tr tal_condition="org_info/url|nothing">
+              <td>URL:</td>
+              <td tal:content="org_info/url"></td>
+          </tr>
 
-        <tr>
-            <td>Email:</td>
-            <td tal:content="org_info/email"></td>
-        </tr>
+          <tr tal:condition="org_info/email|nothing">
+              <td>Email:</td>
+              <td tal:content="org_info/email"></td>
+          </tr>
 
-        <tr>
-            <td>Phone:</td>
-            <td tal:content="org_info/phone"></td>
-        </tr>
+          <tr tal:condition="org_info/phone|nothing">
+              <td>Phone:</td>
+              <td tal:content="org_info/phone"></td>
+          </tr>
 
-        <tr>
-            <td>Fax:</td>
-            <td tal:content="org_info/fax"></td>
-        </tr>
+          <tr tal:condition="org_info/fax|nothing">
+              <td>Fax:</td>
+              <td tal:content="org_info/fax"></td>
+          </tr>
 
-        <tr>
-            <td>Street:</td>
-            <td tal:content="org_info/street"></td>
-        </tr>
+          <tr tal:condition="org_info/street|nothing">
+              <td>Street:</td>
+              <td tal:content="org_info/street"></td>
+          </tr>
 
-        <tr>
-            <td>PO box:</td>
-            <td tal:content="org_info/po_box"></td>
-        </tr>
+          <tr tal:condition="org_info/po_box|nothing">
+              <td>PO box:</td>
+              <td tal:content="org_info/po_box"></td>
+          </tr>
 
-        <tr>
-            <td>Postal code:</td>
-            <td tal:content="org_info/postal_code"></td>
-        </tr>
+          <tr tal:condition="org_info/postal_code|nothing">
+              <td>Postal code:</td>
+              <td tal:content="org_info/postal_code"></td>
+          </tr>
 
-        <tr>
-            <td>Locality:</td>
-            <td tal:content="org_info/locality"></td>
-        </tr>
+          <tr tal:condition="org_info/locality|nothing">
+              <td>Locality:</td>
+              <td tal:content="org_info/locality"></td>
+          </tr>
 
-        <tr>
-            <td>Country:</td>
-            <td tal:content="options/country"></td>
-        </tr>
+          <tr tal:condition="options/country|nothing">
+              <td>Country:</td>
+              <td tal:content="options/country"></td>
+          </tr>
 
-        <tr>
-            <td>Full address:</td>
-            <td tal:content="org_info/postal_address"></td>
-        </tr>
+          <tr tal:condition="org_info/postal_address|nothing">
+              <td>Full address:</td>
+              <td tal:content="org_info/postal_address"></td>
+          </tr>
 
-    </table>
+      </table>
+    </div>
 
-    <div tal:condition="common/checkPermissionEditOrganisations" tal:content="structure python:browserview(options['context'], name='org_changelog')()" />
+    <div style="width:90%" tal:condition="common/checkPermissionEditOrganisations" tal:content="structure python:browserview(options['context'], name='org_changelog')()" />
 
-</div>
+</tal:block>

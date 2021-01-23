@@ -88,17 +88,17 @@ OPERATIONAL_SCHEMA = {
 
 LDAP_ORG_SCHEMA = {
     'name': 'o',
-    'name_native': 'physicalDeliveryOfficeName',
-    'phone': 'telephoneNumber',
-    'fax': 'facsimileTelephoneNumber',
+    # 'name_native': 'physicalDeliveryOfficeName',
+    # 'phone': 'telephoneNumber',
+    # 'fax': 'facsimileTelephoneNumber',
     'url': 'labeledURI',
-    'postal_address': 'postalAddress',
-    'street': 'street',
-    'po_box': 'postOfficeBox',
-    'postal_code': 'postalCode',
-    'country': 'c',
-    'locality': 'l',
-    'email': 'mail',
+    # 'postal_address': 'postalAddress',
+    # 'street': 'street',
+    # 'po_box': 'postOfficeBox',
+    # 'postal_code': 'postalCode',
+    # 'country': 'c',
+    # 'locality': 'l',
+    # 'email': 'mail',
 }
 
 DISABLE_USER_SCHEMA = {
@@ -1107,8 +1107,6 @@ class UsersDB(object):
             'action_id': getattr(self, '_v_action_id', generate_action_id()),
         }
         old_records.append(record)
-        # Circa doesn't support changelog for now
-        # (the registeredAddress fiedld is not present)
         self._save_metadata(rec_dn, old_records)
 
     def _get_email_for_disabled_user(self, metadata):
@@ -1251,8 +1249,7 @@ class UsersDB(object):
             ('cn', [org_id]),
             ('objectClass', [
                 'top', 'groupOfUniqueNames',
-                'interestgroup', 'labeledURIObject',
-                'hierarchicalGroup'
+                'interestgroup', 'labeledURIObject'
             ]
             ),
             ('uniqueMember', ['']),
@@ -1456,9 +1453,11 @@ class UsersDB(object):
             log.exception(msg)
             raise OrgRenameError(msg)
 
-        self.add_change_record(new_org_dn,
-                               RENAMED_ORGANISATION,
-                               {'old_name': org_id})
+        # TODO Circa doesn't support org changelog yet
+        # (the registeredAddress field is not yet in org schema)
+        # self.add_change_record(new_org_dn,
+        #                       RENAMED_ORGANISATION,
+        #                       {'old_name': org_id})
 
     @log_ldap_exceptions
     def delete_org(self, org_id):
@@ -2266,7 +2265,7 @@ class UsersDB(object):
                       'name_native': attr.get('physicalDeliveryOfficeName',
                                               [u""])[0].decode(self._encoding),
                       'country':
-                      attr.get('c', ['int']   # needs to be set to int,
+                      attr.get('c', ['be']   # needs to be set to int,
                                # otherwise org doesn't
                                # show up
                                )[0]})

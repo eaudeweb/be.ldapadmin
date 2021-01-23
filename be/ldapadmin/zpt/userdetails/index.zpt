@@ -156,12 +156,6 @@
                 </tal:block>
             </table>
 
-            <p tal:condition="python: not disabled or can_edit_users">
-                Linked data URL: <a type="application/rdf+xml"
-                    tal:attributes="href string:${common/portal_url}/users/${user/uid}"
-                    tal:content="string:${common/portal_url}/users/${user/uid}" />.
-            </p>
-
             <tal:block condition="python: not disabled and not can_edit_users">
                 <h2>
                     <form method="GET" action="./user" id="show_roles" tal:condition="is_authenticated">

@@ -634,7 +634,11 @@ class RolesEditor(Folder):
         arguments have arbitrary number
 
         """
-        if user.name == 'Anonymous User':
+        try:
+            uid = user._id
+        except AttributeError:
+            uid = user.name
+        if uid == 'Anonymous User':
             return False
         if self.can_edit_roles(user):
             return True
@@ -654,7 +658,11 @@ class RolesEditor(Folder):
         or any subroles.
 
         """
-        if user.name == 'Anonymous User':
+        try:
+            uid = user._id
+        except AttributeError:
+            uid = user.name
+        if uid == 'Anonymous User':
             return False
         if self.can_edit_roles(user):
             return True
