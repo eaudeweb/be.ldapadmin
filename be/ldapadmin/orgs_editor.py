@@ -331,7 +331,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         ]
         for i, col in enumerate(cols):
             org_sheet.write(0, i, col, style_header)
-            org_sheet.write(2, i, org_info[col], style_normal)
+            org_sheet.write(2, i, org_info.get(col), style_normal)
 
         org_sheet.col(1).set_width(9000)
         org_sheet.col(2).set_width(5000)
