@@ -19,7 +19,10 @@
 <tal:block define="is_authenticated common/is_authenticated"
            repeat="role_id python:sorted(options['results'])">
   <tal:block define="role_members python:options['results'][role_id]">
-      <h3>Users in <tt tal:content="python:options['results'][role_id]['name'] or '[ROOT]'" /></h3>
+      <h3 tal:define="name python:options['results'][role_id]['name']" >Users in
+        <kbd tal:condition="role_id" tal:content="string:${name} (${role_id})" />
+        <kbd tal:condition="not: role_id" tal:content="string:[ROOT]" />
+      </h3>
 
         <tal:block define="users role_members/users">
           <metal:block use-macro="common/macros/table-user-info" />

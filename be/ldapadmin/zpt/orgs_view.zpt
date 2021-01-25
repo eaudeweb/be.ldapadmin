@@ -18,7 +18,7 @@
                 <a tal:attributes="href string:${common/base_url}/members_html?id=${org_info/id}"
                     >Members</a>
             </li>
-            <li>
+            <li tal:condition="common/checkPermissionEditOrganisations">
                 <a tal:attributes="href string:${common/base_url}/export_org?id=${org_info/id}"
                     >Export</a>
             </li>

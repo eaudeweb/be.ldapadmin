@@ -177,7 +177,7 @@ def _set_session_message(request, msg_type, msg):
 class UsersAdmin(SimpleItem, PropertyManager):
     meta_type = 'LDAP Users Admin'
     security = ClassSecurityInfo()
-    icon = '++resource++be.ldapadmin-www/eionet_users_admin.gif'
+    icon = '++resource++be.ldapadmin-www/users_admin.gif'
     similarity_level = 0.939999
     session_messages = SESSION_MESSAGES
     title = "LDAP Users Administration"
@@ -466,7 +466,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 label = org['text']
             choices.append((org['id'], label))
 
-        widget = SelectWidget(values=choices)
+        widget = SelectWidget(values=choices, multiple=True)
         schema['organisation'].widget = widget
 
         if 'submit' in REQUEST.form:
@@ -689,6 +689,8 @@ class UsersAdmin(SimpleItem, PropertyManager):
                     if old_org_id not in orgs:
                         agent.remove_from_org(old_org_id, [user_id])
 
+                new_info['organisation'] = ','.join(
+                    agent._search_user_in_orgs(user_id))
                 agent.set_user_info(user_id, new_info)
 
             when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

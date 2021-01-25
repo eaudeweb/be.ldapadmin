@@ -85,7 +85,7 @@ def _session_pop(request, name, default):
 
 class UsersEditor(SimpleItem, PropertyManager):
     meta_type = 'LDAP Users Editor'
-    icon = '++resource++be.userseditor-www/users_editor.gif'
+    icon = '++resource++be.ldapadmin-www/users_editor.gif'
     manage_options = (
         {'label': 'Configure', 'action': 'manage_edit'},
         {'label': 'View', 'action': ''},

@@ -31,7 +31,7 @@ import xlwt
 from be.ldapadmin.db_agent import UserNotFound, NameAlreadyExists
 from be.ldapadmin.db_agent import OrgRenameError, editable_org_fields
 from be.ldapadmin.constants import NETWORK_NAME, USER_INFO_KEYS
-from be.ldapadmin.countries import get_country, get_country_options
+from be.ldapadmin.countries import get_country_options  # , get_country
 from be.ldapadmin.ui_common import extend_crumbs, CommonTemplateLogic
 from be.ldapadmin.ui_common import SessionMessages
 from be.ldapadmin.ui_common import TemplateRenderer
@@ -92,7 +92,7 @@ def _set_session_message(request, msg_type, msg):
 class OrganisationsEditor(SimpleItem, PropertyManager):
     meta_type = 'LDAP Organisations Editor'
     security = ClassSecurityInfo()
-    icon = '++resource++be.ldapadmin-www/eionet_organisations_editor.gif'
+    icon = '++resource++be.ldapadmin-www/organisations_editor.gif'
     session_messages = SESSION_MESSAGES
     manage_options = (
         {'label': 'Configure', 'action': 'manage_edit'},

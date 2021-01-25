@@ -532,7 +532,7 @@ div.filter-section table.account-table:hover {
 	margin: 0;
 	padding: 0;
 	position: relative;
-	top: 4px;
+	top: -2px;
 }
 
 .arrow-blank {

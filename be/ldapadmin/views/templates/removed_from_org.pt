@@ -1,2 +1,1 @@
-<div tal:content="view/organisation" />
-
+<a tal:attributes="href string:/organisations/organisation?id=${view/organisation/id}" tal:content="view/organisation/name" />

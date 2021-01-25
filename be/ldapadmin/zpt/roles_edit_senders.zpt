@@ -87,7 +87,7 @@
               </td>
               <tal:block condition="python: user_info.get('deleted')">
                 <td colspan="2">
-                    <strong>User no longer exists.</strong>
+                    <strong>Deleted user</strong>
                 </td>
                 <td>
                     <span tal:content="user_info/id" />

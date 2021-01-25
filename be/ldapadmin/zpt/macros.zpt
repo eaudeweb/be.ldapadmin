@@ -62,7 +62,7 @@
             <tr tal:condition="python: users[user_id].get('deleted') and is_authenticated">
                 <td></td>
                 <td><span tal:content="user_info/id" /></td>
-                <td><strong>User no longer exists.</strong></td>
+                <td><strong>Deleted user</strong></td>
                 <td></td>
                 <td></td>
             </tr>

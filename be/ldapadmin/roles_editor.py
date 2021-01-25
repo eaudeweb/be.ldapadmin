@@ -102,12 +102,10 @@ def filter_roles(agent, pattern):
     out = {}
     for (role_id, attr) in agent.filter_roles(pattern,
                                               attrlist=('description',)):
-        agent.members_in_role(role_id)  # TODO: unused
         # TODO catch individual errors when showing users
         out[role_id] = {
             'users': role_members(agent, role_id)['users'],
-            'name': (attr.get('description') or
-                     [role_id])[0].decode(agent._encoding),
+            'name': get_role_name(agent, role_id),
         }
 
     return out
@@ -253,7 +251,7 @@ def role_members(agent, role_id, subroles=False, filter_date=None):
 class RolesEditor(Folder):
     meta_type = 'LDAP Roles Editor'
     security = ClassSecurityInfo()
-    icon = '++resource++be.ldapadmin-www/eionet_roles_editor.gif'
+    icon = '++resource++be.ldapadmin-www/roles_editor.gif'
     session_messages = SESSION_MESSAGES
 
     meta_types = (

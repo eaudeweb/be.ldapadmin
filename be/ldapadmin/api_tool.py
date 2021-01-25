@@ -32,7 +32,7 @@ class ApiTool(SimpleItem):
 
     meta_type = 'LDAP Api Tool'
     security = ClassSecurityInfo()
-    icon = '++resource++be.ldapadmin-www/eionet_password_reset_tool.gif'
+    icon = '++resource++be.ldapadmin-www/password_reset_tool.gif'
 
     manage_options = (
         SimpleItem.manage_options

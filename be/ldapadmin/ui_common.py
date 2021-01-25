@@ -15,7 +15,7 @@ from be.ldapadmin.logic_common import load_template
 
 def get_role_name(agent, role_id):
     """
-    Get role's name if exists else keep the role ID
+    Get role's name if exists else beautify the role ID
     """
     return agent.role_info(role_id)['description'].strip() or role_id.split(
         '-')[-1].title().replace('_', ' ')

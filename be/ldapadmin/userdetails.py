@@ -111,7 +111,7 @@ class CommonTemplateLogic(object):
 class UserDetails(SimpleItem):
     meta_type = 'LDAP User Details'
     security = ClassSecurityInfo()
-    icon = '++resource++be.userseditor-www/users_editor.gif'
+    icon = '++resource++be.ldapadmin-www/users_editor.gif'
 
     _render_template = TemplateRenderer(CommonTemplateLogic)
 
@@ -153,20 +153,23 @@ class UserDetails(SimpleItem):
                                                     uid,
                                                     ('description',)))
         roles = []
+        orgs = []
         for (role_id, attrs) in ldap_roles:
             roles.append((role_id,
                           attrs.get('description', ('', ))[0].decode('utf8')))
         user = agent.user_info(uid)
         user['jpegPhoto'] = agent.get_profile_picture(uid)
         user['certificate'] = agent.get_certificate(uid)
-        if user['organisation']:
-            org_info = agent.org_info(user['organisation'])
-            org_id = org_info.get('id')
-            if 'INVALID' in org_id:
-                user['organisation'] = org_id.decode('utf8')
-            user['organisation_title'] = org_info['name']
-        else:
-            user['organisation_title'] = ''
+        if user['orgs']:
+            for org in user['orgs']:
+                org_info = agent.org_info(org)
+                org_id = org_info.get('id')
+                if 'INVALID' in org_id or 'INEXISTENT' in org_id:
+                    orgs.append((org_id, ''))
+                else:
+                    name = org_info['name'].strip() or org_id.title().replace(
+                        '_', ' ')
+                    orgs.append((org_id, name))
         pwdChangedTime = user['pwdChangedTime']
         if pwdChangedTime:
             pwdChangedTime = datetime.strptime(pwdChangedTime, '%Y%m%d%H%M%SZ')
@@ -176,7 +179,7 @@ class UserDetails(SimpleItem):
         else:
             user['pwdChanged'] = ''
             user['pwdExpired'] = True
-        return user, roles
+        return user, roles, orgs
 
     security.declarePublic("index_html")
 
@@ -194,7 +197,7 @@ class UserDetails(SimpleItem):
             multi = json.dumps({'users': uid.split(",")})
         else:
             multi = None
-            user, roles = self._prepare_user_page(uid)
+            user, roles, orgs = self._prepare_user_page(uid)
 
         is_auth = _is_authenticated(REQUEST)
         # we can only connect to ldap with bind=True if we have an
@@ -274,7 +277,7 @@ class UserDetails(SimpleItem):
 
         return self._render_template(
             "zpt/userdetails/index.zpt", context=self,
-            filtered_roles=filtered_roles, user=user, roles=roles,
+            filtered_roles=filtered_roles, user=user, roles=roles, orgs=orgs,
             removed_roles=removed_roles, multi=multi, log_entries=output)
 
     security.declarePublic("simple_profile")
@@ -282,10 +285,10 @@ class UserDetails(SimpleItem):
     def simple_profile(self, REQUEST):
         """ """
         uid = REQUEST.form.get('uid')
-        user, roles = self._prepare_user_page(uid)
+        user, roles, orgs = self._prepare_user_page(uid)
         tr = TemplateRenderer(CommonTemplateLogic)
         return tr.__of__(self).render("zpt/userdetails/simple.zpt",
-                                      user=user, roles=roles)
+                                      user=user, roles=roles, orgs=orgs)
 
     security.declarePublic("userphoto_jpeg")
 

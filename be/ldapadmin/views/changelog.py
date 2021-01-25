@@ -186,7 +186,10 @@ class BaseOrganisationDetails(object):
         for entry in self.entry['data']:
             org = entry.get('organisation')
             if org:
-                return self.context._get_ldap_agent().org_info(org)['name']
+                name = self.context._get_ldap_agent().org_info(org)['name']
+                if not name:
+                    name = org.title().replace('_', ' ')
+                return {'id': org, 'name': name}
 
         return ""
 

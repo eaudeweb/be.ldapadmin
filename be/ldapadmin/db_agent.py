@@ -12,7 +12,7 @@ import ldap.filter
 from ldap.ldapobject import LDAPObject
 from ldap.resiter import ResultProcessor
 from _backport import wraps
-from be.ldapadmin.constants import BASE_DOMAIN, LDAP_PROTOCOL
+from be.ldapadmin.constants import LDAP_PROTOCOL
 
 log = logging.getLogger(__name__)
 
@@ -398,10 +398,13 @@ class UsersDB(object):
 
         return out
 
-    def _unpack_org_info(self, dn, attr, invalid=False):
+    def _unpack_org_info(self, dn, attr, invalid=False, inexistent=False):
         if invalid:
             out = {'dn': dn,
                    'id': 'INVALID ORGANISATION %s' % self._org_id(dn)}
+        elif inexistent:
+            out = {'dn': dn,
+                   'id': 'INEXISTENT ORGANISATION %s' % self._org_id(dn)}
         else:
             out = {'dn': dn, 'id': self._org_id(dn)}
         for name, ldap_name in self.org_schema.iteritems():
@@ -642,7 +645,7 @@ class UsersDB(object):
         assert dn == query_dn
 
         user_info = self._unpack_user_info(dn, attr)
-        # user_info['organisation_links'] = self._search_user_in_orgs(user_id)
+        user_info['orgs'] = self._search_user_in_orgs(user_id)
 
         return user_info
 
@@ -671,9 +674,11 @@ class UsersDB(object):
             org_id = org_id.encode('utf-8')
         query_dn = self._org_dn(org_id)
         invalid = False
+        inexistent = False
         try:
             result = self.conn.search_s(query_dn, ldap.SCOPE_BASE)
         except ldap.NO_SUCH_OBJECT:
+            inexistent = True
             result = [(query_dn, {})]
         except ldap.INVALID_DN_SYNTAX:
             invalid = True
@@ -682,7 +687,8 @@ class UsersDB(object):
         assert len(result) == 1
         dn, attr = result[0]
         assert dn == query_dn
-        return self._unpack_org_info(dn, attr, invalid=invalid)
+        return self._unpack_org_info(dn, attr, invalid=invalid,
+                                     inexistent=inexistent)
 
     @log_ldap_exceptions
     def role_info(self, role_id):
@@ -914,7 +920,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def user_organisations(self, user_id):
         """ return organisations the user belongs to """
-        filter_tmpl = '(&(objectClass=role)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=interestgroup)(uniqueMember=%s))'
         user_dn = self._user_dn(user_id)
         filterstr = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result = self.conn.search_s(self._org_dn(None), ldap.SCOPE_SUBTREE,
@@ -1487,7 +1493,6 @@ class UsersDB(object):
             attrs.append(('description', [description.encode(self._encoding)]))
 
         role_dn = self._role_dn(role_id)
-        import pdb; pdb.set_trace()
 
         try:
             result = self.conn.add_s(role_dn, attrs)

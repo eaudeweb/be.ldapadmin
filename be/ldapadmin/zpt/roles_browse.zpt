@@ -104,8 +104,8 @@
                         <td>
                             <tal:rep tal:repeat="owner python:role_infos[sub_role_id]['owner']" >
                                 <div tal:define="info python: options['get_user_info'](owner)" tal:on-error="string: ${owner} (${error/type})">
-                                    <a tal:attributes="href string:mailto:${info/email}" 
-                                        tal:content="info/full_name" />(<span tal:replace="info/id" />)
+                                  <a tal:attributes="href string:/user?uid=${info/id}" target="_blank"
+                                        tal:content="info/full_name" /> (<span tal:replace="info/id" />)
                                 </div>
                             </tal:rep>
                         </td>
@@ -119,10 +119,14 @@
         </table>
     </tal:block>
 
-    <h2>Users in <tt tal:content="python:role_name or '[ROOT]'" /></h2>
+    <tal:block condition="role_id">
+      <h2>Users in
+        <kbd tal:content="string:${role_name} (${role_id})" />
+      </h2>
 
-    <tal:block define="users role_members/users">
-        <metal:block use-macro="common/macros/table-user-info" />
+      <tal:block define="users role_members/users">
+          <metal:block use-macro="common/macros/table-user-info" />
+      </tal:block>
     </tal:block>
 
     <tal:block condition="python:is_authenticated and options['role_owners']">

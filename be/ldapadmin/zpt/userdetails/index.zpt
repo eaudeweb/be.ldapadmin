@@ -103,17 +103,20 @@
                     <td tal:content="user/first_name" /></tr>
                 <tr><th scope="row" class="scope-row">Surname</th>
                     <td tal:content="user/last_name" /></tr>
-                <tr><th scope="row" class="scope-row">Organisation</th>
+                <tr><th scope="row" class="scope-row">Organisations</th>
                   <td>
-                    <tal:block condition="python:user['organisation_title'] and can_edit_users">
-                      <a tal:content="user/organisation_title"
-                        tal:attributes="href string:/organisations/organisation?id=${user/organisation}" />
-                      <tal:block content="string:(${user/organisation})" />
+                    <tal:block repeat="org options/orgs">
+                      <tal:block define="org_id python:org[0];
+                                         org_title python:org[1];
+                                         last repeat/org/end">
+                        <a tal:condition="org_title"
+                           tal:content="org_title"
+                           target="_blank"
+                           tal:attributes="href string:/organisations/organisation?id=${org_id}" /><tal:block
+                            condition="not:org_title" tal:content="org_id" /><tal:block
+                            condition="not:repeat/org/end">, </tal:block>
+                      </tal:block>
                     </tal:block>
-                    <tal:block condition="python:user['organisation_title'] and not can_edit_users"
-                    content="string:${user/organisation_title} (${user/organisation})" />
-                    <tal:block condition="not:user/organisation_title"
-                      tal:content="user/organisation" />
                   </td>
                 </tr>
                 <tal:block condition="python:not disabled and is_authenticated or can_edit_users">
@@ -123,7 +126,10 @@
                     <tr><th scope="row" class="scope-row">Department</th>
                         <td tal:content="user/department" /></tr>
                     <tr><th scope="row" class="scope-row">Mail</th>
-                        <td tal:content="user/email" /></tr>
+                        <td>
+                          <a tal:attributes="href string:mailto:${user/email}"
+                             tal:content="user/email" />
+                        </tr>
                     <tr><th scope="row" class="scope-row">Telephone</th>
                         <td tal:content="user/phone" /></tr>
                     <tr><th scope="row" class="scope-row">Mobile phone</th>
@@ -150,15 +156,17 @@
                         <td tal:content="user/createTimestamp" /></tr>
                     <tr><th scope="row" class="scope-row">Modified</th>
                         <td tal:content="user/modifyTimestamp" /></tr>
-                    <tr><th scope="row" class="scope-row">Password last changed</th>
+                    <tr tal:condition="user/pwdChanged">
+                        <th scope="row" class="scope-row">Password last changed</th>
                         <td tal:attributes="class python:'error-hint' if user['pwdExpired'] and not disabled else ''"
-                          tal:content="user/pwdChanged" /></tr>
+                          tal:content="user/pwdChanged" />
+                    </tr>
                 </tal:block>
             </table>
 
             <tal:block condition="python: not disabled and not can_edit_users">
                 <h2>
-                    <form method="GET" action="./user" id="show_roles" tal:condition="is_authenticated">
+                    <form method="GET" action="/user" id="show_roles" tal:condition="is_authenticated">
                         <input type="hidden" name="uid" tal:attributes="value string:${user/uid}" />
                         <label for="date_for_roles">At date:</label>
                         <input type="text" name="date_for_roles" id="datepicker" class="hasDatePicker" 
@@ -200,7 +208,7 @@
             <div tal:condition="can_edit_users">
 
                 <h2>
-                    <form method="GET" action="./user" id="show_roles" tal:condition="not: disabled" >
+                    <form method="GET" action="/user" id="show_roles" tal:condition="not: disabled" >
                         <input type="hidden" name="uid" tal:attributes="value string:${user/uid}" />
                         <label for="date_for_roles">At date:</label>
                         <input type="text" name="date_for_roles" id="datepicker" class="hasDatePicker" 
