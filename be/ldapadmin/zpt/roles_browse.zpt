@@ -65,7 +65,7 @@
     <tal:block condition="role_infos">
         <h2>
             <tal:block condition="role_id">
-                Sub-roles in <tt tal:content="python:role_name or role_id"/>
+                Sub-roles in <tt tal:content="role_name"/>
             </tal:block>
             <tal:block condition="not:role_id">
                 Top Roles

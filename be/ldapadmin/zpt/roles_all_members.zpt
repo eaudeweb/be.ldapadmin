@@ -3,7 +3,7 @@
     Role and subroles members of <tt tal:content="options/role_id" />
 </h1>
 
-<a tal:attributes="href string:mailto:${options/role_id}@$(options/roles_domain)"
+<a tal:attributes="href python:'mailto:' + options['role_id'] + '@' + options['roles_domain']"
    tal:condition="python: common.supports_mailing and options['role_id'] and common.is_authenticated()"
    title="Send mail to group" class="right-position mailing-link">
    MAILING: <tt tal:content="string:${options/role_id}@${options/roles_domain}"/>

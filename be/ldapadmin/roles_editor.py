@@ -346,16 +346,6 @@ class RolesEditor(Folder):
 
         all_roles = [role_id] + subrole_ids
         locations = {}
-        # locations is a dict like:
-        # {
-        # 'environment-group': [[('Viewer',
-        #  {'is_site': True,
-        #   'ob': <GroupwareSite at /site-id>, 'path': ''})],
-        #  [('Contributor',
-        #   {'is_site': True,
-        #    'ob': <GroupwareSite at /01-cciep>,
-        #            'path': ''})],
-        # }
 
         for gsite in parent.objectValues("Groupware site"):
             has_groupware = True

@@ -241,7 +241,7 @@ class UsersDB(object):
 
         dn_start = ''
         for c in range(len(id_bits), 0, -1):
-            dn_start += 'cn=%s,' % '-'.join(id_bits[:c])
+            dn_start += 'ou=%s,' % '-'.join(id_bits[:c])
         return dn_start + self._role_dn_suffix
 
     def _role_id(self, role_dn):
@@ -250,32 +250,32 @@ class UsersDB(object):
         assert role_dn.endswith(',' + self._role_dn_suffix)
         role_dn_start = role_dn[: - (len(self._role_dn_suffix) + 1)]
         dn_bits = role_dn_start.split(',')
-        dn_bits.reverse()
 
+        dn_bits.reverse()
         current_bit = None
         for bit in dn_bits:
-            assert bit.startswith('cn=')
-            bit = bit[len('cn='):]
+            assert bit.startswith('ou=')
+            bit = bit[len('ou='):]
             if current_bit is None:
                 assert '-' not in bit
             else:
                 assert bit.startswith(current_bit + '-')
                 assert '-' not in bit[len(current_bit) + 1:]
             current_bit = bit
-
         return current_bit
 
     def _role_id_no_check(self, role_dn):
         """ Same as _role_id, but no checkups, for faster processing """
-        return re.match(r'cn=([^,]*)', role_dn).groups()[0]
+        return re.match(r'ou=([^,]*)', role_dn).groups()[0]
 
     def _role_id_parent(self, role_dn):
         """ Returns parent role_id from dn, if existing, else None """
-        match = re.match(r'cn=[^,]*,cn=([^,]*),', role_dn)
+        match = re.match(r'ou=[^,]*,ou=([^,]*),', role_dn)
         if match:
-            return match.groups()[0]
-        else:
-            return None
+            parent = match.groups()[0]
+            if parent != 'DATA':
+                return parent
+        return None
 
     def _ancestor_roles_dn(self, role_dn):
         """
@@ -286,9 +286,9 @@ class UsersDB(object):
 
         # Example usage::
         #     >>> self._ancestor_roles_dn(
-        #     ...   "cn=eionet-group,cn=eionet,ou=Roles,o=EIONET,l=Europe")
-        #     ['cn=eionet-group,ou=Roles,o=EIONET,l=Europe',
-        #      'cn=eionet,ou=Roles,o=EIONET,l=Europe']
+        #     ...   "ou=eionet-group,ou=eionet,ou=Roles,o=EIONET,l=Europe")
+        #     ['ou=eionet-group,ou=Roles,o=EIONET,l=Europe',
+        #      'ou=eionet,ou=Roles,o=EIONET,l=Europe']
 
         assert role_dn.endswith(',' + self._role_dn_suffix), "Invalid Role DN"
         role_dn_start = role_dn[: - (len(self._role_dn_suffix) + 1)]
@@ -298,7 +298,7 @@ class UsersDB(object):
         ancestors = []
         accumulator = self._role_dn_suffix
         for bit in dn_bits:
-            assert bit.startswith('cn=')
+            assert bit.startswith('ou=')
             accumulator = bit + "," + accumulator
             ancestors.insert(0, accumulator)
 
@@ -421,7 +421,7 @@ class UsersDB(object):
         query_dn = self._role_dn(role_id)
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_ONELEVEL,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('description',)
         )
 
@@ -441,7 +441,7 @@ class UsersDB(object):
         query_dn = self._role_dn(role_id)
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_ONELEVEL,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('description', 'owner', 'permittedSender',
                       'permittedPerson', 'leaderMember', 'alternateLeader')
         )
@@ -455,7 +455,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def filter_roles(
             self, pattern, prefix_dn=None,
-            filterstr='(objectClass=groupOfUniqueNames)', attrlist=()):
+            filterstr='(objectClass=role)', attrlist=()):
         """
         Returns all roles matching `pattern`.
         We can use `prefix_dn` to restrict searching pool and/or filterstr
@@ -509,7 +509,7 @@ class UsersDB(object):
         query_dn = self._role_dn(role_id)
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_BASE,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('uniqueMember',))
 
         out = {'users': [], 'orgs': []}
@@ -546,7 +546,7 @@ class UsersDB(object):
         query_dn = self._role_dn(role_id)
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_SUBTREE,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('uniqueMember',))
 
         preout = {'users': {}, 'orgs': {}}
@@ -608,14 +608,14 @@ class UsersDB(object):
         # first, get all user ids in this role
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_BASE,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('uniqueMember',))
         all_members = member_tuples_from_result(result)
 
         # then get all user ids in sub-roles
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_ONELEVEL,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('uniqueMember',))
         members_in_sub_roles = member_tuples_from_result(result)
 
@@ -914,7 +914,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def user_organisations(self, user_id):
         """ return organisations the user belongs to """
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=role)(uniqueMember=%s))'
         user_dn = self._user_dn(user_id)
         filterstr = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result = self.conn.search_s(self._org_dn(None), ldap.SCOPE_SUBTREE,
@@ -934,7 +934,7 @@ class UsersDB(object):
 
     def roles_owner(self, user_id):
         """ return roles where user is owner """
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(owner=%s))'
+        filter_tmpl = '(&(objectClass=role)(owner=%s))'
         user_dn = self._user_dn(user_id)
         filterstr = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result = self.conn.search_s(self._role_dn(None), ldap.SCOPE_SUBTREE,
@@ -1479,7 +1479,7 @@ class UsersDB(object):
         attrs = [
             ('cn', [role_id]),
             ('objectClass',
-             ['top', 'groupOfUniqueNames', 'mailListGroup',
+             ['top', 'role', 'organizationalUnit', 'mailListGroup',
               'hierarchicalGroup']),
             ('ou', [role_id.split('-')[-1]]),
             ('uniqueMember', ['']),
@@ -1657,7 +1657,7 @@ class UsersDB(object):
         role_dn = self._role_dn(role_id)
         result = self.conn.search_s(
             role_dn, ldap.SCOPE_SUBTREE,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=())
 
         sub_roles = []
@@ -1852,14 +1852,14 @@ class UsersDB(object):
         """Add user_id as owner to role_id and sub-roles, return roles' ids"""
         query_dn = self._role_dn(role_id)
         user_dn = self._user_dn(user_id)
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(owner=%s))'
+        filter_tmpl = '(&(objectClass=role)(owner=%s))'
         filter_str = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result_existing = self.conn.search_s(query_dn, ldap.SCOPE_SUBTREE,
                                              filterstr=filter_str, attrlist=())
         existing = map(lambda x: x[0], list(result_existing))
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_SUBTREE,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=())
         updated = []
         for role_dn, attr in result:
@@ -1889,7 +1889,7 @@ class UsersDB(object):
         """Remove user_id from role_id and all sub-roles, return roles' ids"""
         query_dn = self._role_dn(role_id)
         user_dn = self._user_dn(user_id)
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(owner=%s))'
+        filter_tmpl = '(&(objectClass=role)(owner=%s))'
         filter_str = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result_existing = self.conn.search_s(query_dn, ldap.SCOPE_SUBTREE,
                                              filterstr=filter_str, attrlist=())
@@ -2072,11 +2072,12 @@ class UsersDB(object):
             # x = ag._sub_roles_with_member(ag._role_dn('a-b'),
             # ...                           ag._user_dn('user_in_c'))
             # list(x)
-            ['cn=a-b,cn=a,ou=Roles,o=EIONET,l=Europe',
-             'cn=a-b-c,cn=a-b,cn=a,ou=Roles,o=EIONET,l=Europe']
+            ['ou=a-b,ou=a,ou=DATA,ou=america,o=IRCroles,dc=CIRCA,dc=local',
+             'ou=a-b-c,ou=a-b,ou=a,ou=DATA,ou=america,o=IRCroles,dc=CIRCA,'
+             'dc=local']
 
         """
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=role)(uniqueMember=%s))'
         filterstr = ldap.filter.filter_format(filter_tmpl, (member_dn,))
         result = self.conn.search_s(role_dn, ldap.SCOPE_SUBTREE,
                                     filterstr=filterstr, attrlist=())
@@ -2092,9 +2093,10 @@ class UsersDB(object):
         #     >>> x = ag._imediate_sub_roles_with_member(ag._role_dn('a-b'),
         #     ...         ag._user_dn('user_in_d'))
         #     >>> list(x)
-        #     ['cn=a-b-c,cn=a-b,cn=a,ou=Roles,o=EIONET,l=Europe']
+        #     ['dn=a-b-c,dn=a-b,dn=a,ou=DATA,ou=america,o=IRCroles,dc=CIRCA,'
+        #      'dc=local']
 
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=role)(uniqueMember=%s))'
         filterstr = ldap.filter.filter_format(filter_tmpl, (member_dn,))
         result = self.conn.search_s(role_dn, ldap.SCOPE_ONELEVEL,
                                     filterstr=filterstr, attrlist=())
@@ -2186,7 +2188,7 @@ class UsersDB(object):
         and from ancestor roles that do not have sub-roles containing
         member_id.
 
-        Since we use the `groupOfUniqueNames` and `uniqueMember` classes, we
+        Since we use the `role` and `uniqueMember` classes, we
         need to do some juggling with a blank placeholder member:
           * step 1: try to add '' as member, so the role is never empty
           * step 2: remove our member as requested
@@ -2228,7 +2230,7 @@ class UsersDB(object):
         """
         member_dn = self._member_dn(member_type, member_id)
         role_dn = self._role_dn(None)
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=role)(uniqueMember=%s))'
         filterstr = ldap.filter.filter_format(filter_tmpl, (member_dn,))
         results = self.conn.search_s(role_dn, ldap.SCOPE_SUBTREE,
                                      filterstr=filterstr, attrlist=attrlist)
@@ -2286,7 +2288,7 @@ class UsersDB(object):
                     self.conn.search_s(
                         role_dn,
                         ldap.SCOPE_ONELEVEL,
-                        filterstr='(objectClass=groupOfUniqueNames)',
+                        filterstr='(objectClass=role)',
                         attrlist=[])
                     ]
 
