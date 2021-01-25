@@ -1479,16 +1479,15 @@ class UsersDB(object):
         attrs = [
             ('cn', [role_id]),
             ('objectClass',
-             ['top', 'role', 'organizationalUnit', 'mailListGroup',
-              'hierarchicalGroup']),
+             ['top', 'role', 'organizationalUnit']),
             ('ou', [role_id.split('-')[-1]]),
             ('uniqueMember', ['']),
-            ('permittedSender', ['owners', '*@%s' % BASE_DOMAIN])
         ]
         if description:
             attrs.append(('description', [description.encode(self._encoding)]))
 
         role_dn = self._role_dn(role_id)
+        import pdb; pdb.set_trace()
 
         try:
             result = self.conn.add_s(role_dn, attrs)
