@@ -1,27 +1,19 @@
 <h1 class="account-h1">
-    <span tal:replace="options/network_name"></span> account
+    <span tal:replace="common/network_name"></span> account
     <img src="/++resource++be.ldapadmin-www/next.png" class="image12" alt=""
          title="Subsection" />
     Profile Picture
 </h1>
 
 <div class="account-links">
-    <a tal:attributes="href string:${options/base_url}/" class="button"
+    <a tal:attributes="href string:/user?uid=${options/user_id}/" class="button"
        title="Back to account information">
         <img src="/++resource++be.ldapadmin-www/back.png" class="middle-image image12"
              alt="" title="Back to account information" />
         Back to account information
     </a>
     &nbsp;
-    <a class="button"
-       tal:attributes="href string:${options/base_url}/edit_account_html"
-       title="Edit account settigns">
-        <img src="/++resource++be.ldapadmin-www/settings.png"
-             class="middle-image image12" alt="" title="Edit account settings" />
-        Account settings
-    </a>
-    &nbsp;
-    <a tal:attributes="href string:${options/base_url}/change_password_html"
+    <a href="/user/change_password_html"
        class="button" title="Change your account password">
         <img src="/++resource++be.ldapadmin-www/lock.png" class="middle-image image12"
              alt="" title="Edit account settings" />

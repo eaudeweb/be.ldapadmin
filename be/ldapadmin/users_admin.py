@@ -239,7 +239,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
     security.declarePublic('can_edit_user')
 
     def can_edit_user(self, user_id):
-        return logged_in_user(self.REQUEST) == user_id or self.can_edit_users()
+        return logged_in_user(self.REQUEST) == user_id
 
     security.declareProtected(view, 'can_edit_users')
 
@@ -565,8 +565,8 @@ class UsersAdmin(SimpleItem, PropertyManager):
 
         """
         user_id = REQUEST.form['id']
-        if not self.checkPermissionEditUsers() and not self.can_edit_user(
-                user_id):
+        if not (self.checkPermissionEditUsers() or
+                self.can_edit_user(user_id)):
             raise Unauthorized
         agent = self._get_ldap_agent(bind=True)
         errors = _session_pop(REQUEST, SESSION_FORM_ERRORS, {})
@@ -583,8 +583,9 @@ class UsersAdmin(SimpleItem, PropertyManager):
             orgs = secondary_agent.all_organisations()
         orgs = [{'id': k, 'text': v['name'], 'text_native': v['name_native'],
                  'ldap': True} for k, v in orgs.items()]
-        user_orgs = form_data.get('organisation').split(',')
+        user_orgs = form_data.get('organisation')
         if user_orgs:
+            user_orgs = user_orgs.split(',')
             # Some users have free text, non-existent orgs saved on
             # their profile, add those to the select options
             orgs_with_user = agent._search_user_in_orgs(user_id)
@@ -645,6 +646,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         #         agent.get_email_for_disabled_user_dn(user_dn)
 
         options = {'user': user,
+                   'my_account': user_id == logged_in_user(REQUEST),
                    'form_data': form_data,
                    'schema': schema,
                    'errors': errors,
@@ -657,8 +659,8 @@ class UsersAdmin(SimpleItem, PropertyManager):
     def edit_user_action(self, REQUEST):
         """ view """
         user_id = REQUEST.form['id']
-        if not self.checkPermissionEditUsers() and not self.can_edit_user(
-                user_id):
+        if not (self.checkPermissionEditUsers() or
+                self.can_edit_user(user_id)):
             raise Unauthorized
 
         schema = user_info_edit_schema.clone()

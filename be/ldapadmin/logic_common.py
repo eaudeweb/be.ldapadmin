@@ -53,9 +53,3 @@ def load_template(name, context=None, _memo={}):
             _memo[name] = tpl
 
     return _memo[name]
-
-
-# def load_template(name, _memo={}):
-#    if name not in _memo:
-#        _memo[name] = PageTemplateFile(name, globals())
-#    return _memo[name]

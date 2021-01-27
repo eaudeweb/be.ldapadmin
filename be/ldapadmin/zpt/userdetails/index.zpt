@@ -65,12 +65,35 @@
 
             <h1 property="foaf:name">
                 <tal:block content="user/full_name" />
-                <a tal:condition="can_edit_user"
+                <a tal:condition="python: can_edit_user or can_edit_users"
                     style="background:none"
-                    tal:attributes="href string:/users/edit_user?id=${user/uid}">
+                    tal:attributes="href string:/users/edit_user?id=${user_id}">
                     <img src="/++resource++be.ldapadmin-www/edit.gif" alt="Edit" />
                 </a>
             </h1>
+
+            <div class="account-links" tal:condition="can_edit_user">
+              <a tal:attributes="href string:/users/edit_user?id=${user_id}" class="button"
+                   title="Edit your account">
+                    <img src="/++resource++be.ldapadmin-www/settings.png" class="middle-image image12"
+                         alt="" title="Edit your account" />
+                    Edit your account
+                </a>
+                &nbsp;
+                <a class="button" href="change_password_html"
+                   title="Change your password">
+                    <img src="/++resource++be.ldapadmin-www/lock.png"
+                         class="middle-image image12" alt="" title="Change your password" />
+                    Change your password
+                </a>
+                &nbsp;
+                <a href="profile_picture_html"
+                   class="button" title="Select your profile picture">
+                    <img src="/++resource++be.ldapadmin-www/picture.png" class="middle-image image12"
+                         alt="" title="Select profile picture" />
+                    Profile Picture
+                </a>
+            </div>
 
             <div class="tip-msg" tal:condition="not: is_authenticated">
                 You are displaying this <span tal:replace="common/network_name" /> User details as anonymous.

@@ -214,8 +214,7 @@ class CommonTemplateLogic(object):
         return NETWORK_NAME == 'Eionet'
 
     def can_edit_user(self, user_id):
-        return user_id == logged_in_user(self.context.REQUEST) or \
-            self.can_edit_users()
+        return user_id == logged_in_user(self.context.REQUEST)
 
     @property
     def can_edit_users(self):
