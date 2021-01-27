@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from zope.component import getMultiAdapter
 from AccessControl import ClassSecurityInfo  # , Unauthorized
-from AccessControl.Permissions import view_management_screens
+from AccessControl.Permissions import view, view_management_screens
 from Acquisition import Implicit
 from DateTime import DateTime
 from OFS.SimpleItem import SimpleItem
@@ -14,8 +14,8 @@ from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 from persistent.mapping import PersistentMapping
 from zExceptions import NotFound
 from be.ldapadmin import ldap_config
-from be.ldapadmin.constants import NETWORK_NAME
 from be.ldapadmin.logic_common import _is_authenticated, load_template
+from be.ldapadmin.ui_common import CommonTemplateLogic
 
 ldap_edit_users = 'LDAP edit users'
 
@@ -76,36 +76,6 @@ class TemplateRenderer(Implicit):
 
     def __call__(self, name, **options):
         return self.wrap(self.render(name, **options))
-
-
-class CommonTemplateLogic(object):
-    def __init__(self, context):
-        self.context = context
-
-    def _get_request(self):
-        return self.context.REQUEST
-
-    def base_url(self):
-        return self.context.absolute_url()
-
-    def portal_url(self):
-        return self.context.restrictedTraverse("/").absolute_url()
-
-    def is_authenticated(self):
-        return _is_authenticated(self._get_request())
-
-    def can_edit_users(self):
-        user = self.context.REQUEST.AUTHENTICATED_USER
-        return bool(user.has_permission(ldap_edit_users, self.context))
-
-    @property
-    def macros(self):
-        return load_template('zpt/macros.zpt').macros
-
-    @property
-    def network_name(self):
-        """ E.g. EIONET, SINAnet etc. """
-        return NETWORK_NAME
 
 
 class UserDetails(SimpleItem):
@@ -318,3 +288,9 @@ class UserDetails(SimpleItem):
 
         agent = self._get_ldap_agent()
         return agent.orgs_for_user(user_id)
+
+    security.declareProtected(view, 'can_edit_users')
+
+    def can_edit_users(self):
+        user = self.REQUEST.AUTHENTICATED_USER
+        return bool(user.has_permission(ldap_edit_users, self))

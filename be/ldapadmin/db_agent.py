@@ -169,7 +169,7 @@ class RoleRenameError(Exception):
     pass
 
 
-editable_user_fields = sorted(set(LDAP_USER_SCHEMA) - set(['full_name']))
+editable_user_fields = sorted(LDAP_USER_SCHEMA)
 editable_org_fields = list(LDAP_ORG_SCHEMA)  # TODO + ['organisation_links']
 
 
@@ -832,7 +832,8 @@ class UsersDB(object):
                                user_info.get('last_name', u""))
         user_info['full_name'] = full_name.strip()
 
-    def _user_info_diff(self, user_id, old_info, new_info, existing_orgs):
+    def _user_info_diff(self, user_id, old_info, new_info,
+                        add_to_orgs, remove_from_orgs):
         def pack(value):
             return [value.encode(self._encoding)]
 
@@ -847,25 +848,28 @@ class UsersDB(object):
         def do(*args):
             modify_statements.append(args)
 
-        for name in editable_user_fields + ['full_name']:
-            old_value = old_info.get(name, u"")
-            new_value = new_info.get(name, u"")
+        for name in editable_user_fields:
             ldap_name = self.user_schema[name]
+            if name == 'organisation':
+                for org in remove_from_orgs:
+                    do(ldap.MOD_DELETE, ldap_name, pack(org))
+                for org in add_to_orgs:
+                    do(ldap.MOD_ADD, ldap_name, pack(org))
+            else:
+                old_value = old_info.get(name, u"")
+                new_value = new_info.get(name, u"")
 
-            if old_value == new_value == '':
-                pass
+                if old_value == new_value == '':
+                    pass
 
-            elif old_value == '':
-                do(ldap.MOD_ADD, ldap_name, pack(new_value))
+                elif old_value == '':
+                    do(ldap.MOD_ADD, ldap_name, pack(new_value))
 
-            elif new_value == '':
-                do(ldap.MOD_DELETE, ldap_name, [])
+                elif new_value == '':
+                    do(ldap.MOD_DELETE, ldap_name, [])
 
-            elif old_value != new_value:
-                do(ldap.MOD_REPLACE, ldap_name, pack(new_value))
-
-#        add_to_orgs = set(new_org_ids) - set(existing_orgs)
-#        remove_from_orgs = set(existing_orgs) - set(new_org_ids)
+                elif old_value != new_value:
+                    do(ldap.MOD_REPLACE, ldap_name, pack(new_value))
 
         # compose output for ldap calls
         out = {}
@@ -878,23 +882,30 @@ class UsersDB(object):
     @log_ldap_exceptions
     def set_user_info(self, user_id, new_info):
         old_info = self.user_info(user_id)
-        existing_orgs = self._search_user_in_orgs(user_id)
-        diff = self._user_info_diff(user_id, old_info, new_info, existing_orgs)
+        orgs_with_user = self._search_user_in_orgs(user_id)
+        user_orgs = old_info.get('organisation')
+        if user_orgs:
+            user_orgs = user_orgs.split(', ')
+        else:
+            user_orgs = []
+        existing_orgs = list(set(orgs_with_user).union(set(user_orgs)))
+        new_orgs = new_info.get('organisation')
+        add_to_orgs = list(set(new_orgs) - set(existing_orgs))
+        remove_from_orgs = list(set(existing_orgs) - set(new_orgs))
+        diff = self._user_info_diff(user_id, old_info, new_info,
+                                    add_to_orgs, remove_from_orgs)
         if not diff:
             return
-
-        # result = self.conn.modify_s(
-        #     self._user_dn(user_id),
-        #     [
-        #         (ldap.MOD_REPLACE, 'employeeType', 'disabled'),
-        #         (ldap.MOD_REPLACE, 'mail', 'disabled@eionet.europa.eu'),
-        #     ]
-        # )
+        for org in remove_from_orgs:
+            self.remove_from_org(org, [user_id])
+        for org in add_to_orgs:
+            self.add_to_org(org, [user_id])
 
         log.info("Modifying info for user %r", user_id)
         for dn, modify_statements in diff.iteritems():
             result = self.conn.modify_s(dn, tuple(modify_statements))
             assert result[:2] == (ldap.RES_MODIFY, [])
+        return True
 
     def _org_info_diff(self, org_id, old_info, new_info):
         def pack(value):
@@ -1408,13 +1419,6 @@ class UsersDB(object):
         # record this change in the user's log
         users = [(user_id, self._user_dn(user_id)) for user_id in user_id_list]
         org_dn = self._org_dn(org_id)
-        for user_id, user_dn in users:
-            self.add_change_record(user_dn, REMOVED_FROM_ORG, {
-                'organisation': org_id,
-            })
-            # TODO re-enable org changelog
-            # self.add_change_record(org_dn, REMOVED_MEMBER_FROM_ORG,
-            #                       {'member': user_id})
 
         user_dn_list = [user_dn for (user_id, user_dn) in users]
         changes = ((ldap.MOD_DELETE, 'uniqueMember', user_dn_list), )
@@ -1424,8 +1428,19 @@ class UsersDB(object):
         if not (set(self.members_in_org(org_id)) - set(user_id_list)):
             changes = ((ldap.MOD_ADD, 'uniqueMember', ['']),) + changes
 
-        result = self.conn.modify_s(org_dn, changes)
-        assert result[:2] == (ldap.RES_MODIFY, [])
+        try:
+            result = self.conn.modify_s(org_dn, changes)
+            assert result[:2] == (ldap.RES_MODIFY, [])
+            for user_id, user_dn in users:
+                self.add_change_record(user_dn, REMOVED_FROM_ORG, {
+                    'organisation': org_id,
+                })
+                # TODO re-enable org changelog
+                # self.add_change_record(org_dn, REMOVED_MEMBER_FROM_ORG,
+                #                       {'member': user_id})
+        except ldap.NO_SUCH_ATTRIBUTE as e:
+            if 'no such value' not in e[0]['info']:
+                raise
 
     @log_ldap_exceptions
     def rename_org(self, org_id, new_org_id):

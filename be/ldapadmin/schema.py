@@ -114,7 +114,8 @@ class UserInfoSchema(colander.MappingSchema):
         PhoneNumber(), missing='', validator=_phone_validator,
         description='Fax number')
     organisation = colander.SchemaNode(
-        colander.List(), description='Organisation', missing='')
+        colander.String(),
+        description='Organisation', missing=[])
     department = colander.SchemaNode(
         colander.String(), missing='', description='Department')
 

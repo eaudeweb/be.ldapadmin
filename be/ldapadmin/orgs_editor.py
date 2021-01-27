@@ -833,7 +833,6 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         with agent.new_action():
             for user_id in user_id_list:
                 old_info = agent.user_info(user_id)
-                self._remove_from_all_orgs(agent, user_id)
                 old_info['organisation'] = org_id
                 agent.set_user_info(user_id, old_info)
 
@@ -884,26 +883,6 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
                 org_agent.add_to_org(org_id, [user_id])
             else:
                 raise
-
-    def _remove_from_all_orgs(self, agent, user_id):
-        orgs = agent.user_organisations(user_id)
-        for org_dn in orgs:
-            org_id = agent._org_id(org_dn)
-            try:
-                agent.remove_from_org(org_id, [user_id])
-            except ldap.NO_SUCH_ATTRIBUTE:  # user is not in org
-                pass
-            except ldap.INSUFFICIENT_ACCESS:
-                ids = self.aq_parent.objectIds(["LDAP Organisations Editor"])
-                if ids:
-                    obj = self.aq_parent[ids[0]]
-                    org_agent = obj._get_ldap_agent(bind=True)
-                    try:
-                        org_agent.remove_from_org(org_id, [user_id])
-                    except ldap.NO_SUCH_ATTRIBUTE:    # user is not in org
-                        pass
-                else:
-                    raise
 
     def get_ldap_user_groups(self, user_id):
         """ """

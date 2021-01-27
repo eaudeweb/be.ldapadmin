@@ -17,6 +17,7 @@ from OFS.PropertyManager import PropertyManager
 from OFS.SimpleItem import SimpleItem
 from AccessControl.Permissions import view, view_management_screens
 from AccessControl import ClassSecurityInfo
+from AccessControl.unauthorized import Unauthorized
 from App.class_init import InitializeClass
 from Products.Five.browser import BrowserView
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
@@ -234,6 +235,11 @@ class UsersAdmin(SimpleItem, PropertyManager):
         """ save changes to configuration """
         self._config.update(ldap_config.read_form(REQUEST.form, edit=True))
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/manage_edit')
+
+    security.declarePublic('can_edit_user')
+
+    def can_edit_user(self, user_id):
+        return logged_in_user(self.REQUEST) == user_id or self.can_edit_users()
 
     security.declareProtected(view, 'can_edit_users')
 
@@ -550,7 +556,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         return self._render_template_no_wrap('zpt/users/find_duplicates.zpt',
                                              **options)
 
-    security.declareProtected(ldap_edit_users, 'edit_user')
+    security.declarePublic('edit_user')
 
     def edit_user(self, REQUEST):
         """
@@ -559,6 +565,9 @@ class UsersAdmin(SimpleItem, PropertyManager):
 
         """
         user_id = REQUEST.form['id']
+        if not self.checkPermissionEditUsers() and not self.can_edit_user(
+                user_id):
+            raise Unauthorized
         agent = self._get_ldap_agent(bind=True)
         errors = _session_pop(REQUEST, SESSION_FORM_ERRORS, {})
         user = agent.user_info(user_id)
@@ -574,15 +583,17 @@ class UsersAdmin(SimpleItem, PropertyManager):
             orgs = secondary_agent.all_organisations()
         orgs = [{'id': k, 'text': v['name'], 'text_native': v['name_native'],
                  'ldap': True} for k, v in orgs.items()]
-        user_orgs = list(agent.user_organisations(user_id))
-        if not user_orgs:
-            org = form_data.get('organisation')
-            if org:
-                orgs.append(
-                    {'id': org, 'text': org, 'text_native': '', 'ldap': False})
-        else:
-            form_data['organisation'] = [
-                agent._org_id(org) for org in user_orgs]
+        user_orgs = form_data.get('organisation').split(',')
+        if user_orgs:
+            # Some users have free text, non-existent orgs saved on
+            # their profile, add those to the select options
+            orgs_with_user = agent._search_user_in_orgs(user_id)
+            for org in user_orgs:
+                if org not in orgs_with_user:
+                    orgs.append(
+                        {'id': org, 'text': org, 'text_native': '',
+                         'ldap': False})
+            form_data['organisation'] = user_orgs
         orgs.sort(lambda x, y: cmp(x['text'], y['text']))
         schema = user_info_edit_schema.clone()
 
@@ -624,6 +635,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             else:
                 label = org['text']
             choices.append((org['id'], label))
+        choices.sort(key=lambda x: x[1].lower())
         widget = SelectWidget(values=choices)
         schema['organisation'].widget = widget
 
@@ -640,11 +652,14 @@ class UsersAdmin(SimpleItem, PropertyManager):
         self._set_breadcrumbs([(user_id, '#')])
         return self._render_template('zpt/users/edit.zpt', **options)
 
-    security.declareProtected(ldap_edit_users, 'edit_user_action')
+    security.declarePublic('edit_user_action')
 
     def edit_user_action(self, REQUEST):
         """ view """
         user_id = REQUEST.form['id']
+        if not self.checkPermissionEditUsers() and not self.can_edit_user(
+                user_id):
+            raise Unauthorized
 
         schema = user_info_edit_schema.clone()
         # if the skip_email_validation field exists but is not activated,
@@ -656,8 +671,11 @@ class UsersAdmin(SimpleItem, PropertyManager):
         user_form = deform.Form(schema)
 
         try:
-            orgs = REQUEST.form.pop('organisation')
+            orgs = REQUEST.form.pop('organisation', [])
+            if not isinstance(orgs, list):
+                orgs = [orgs]
             new_info = user_form.validate(REQUEST.form.items())
+            new_info['organisation'] = orgs
         except deform.ValidationFailure as e:
             session = REQUEST.SESSION
             errors = {}
@@ -670,35 +688,22 @@ class UsersAdmin(SimpleItem, PropertyManager):
         else:
             agent = self._get_ldap_agent(bind=True)
 
-            # make a check if user is changing the organisation
-            user_orgs = [agent._org_id(org)
-                         for org in list(agent.user_organisations(user_id))]
-
             new_info['search_helper'] = _transliterate(
                 new_info['first_name'], new_info['last_name'],
                 new_info.get('full_name_native', ''),
                 new_info.get('search_helper', ''))
 
             with agent.new_action():
-                for new_org_id in orgs:
-                    if new_org_id not in user_orgs:
-                        new_org_id_valid = agent.org_exists(new_org_id)
-                        if new_org_id_valid:
-                            self._add_to_org(agent, new_org_id, user_id)
-                for old_org_id in user_orgs:
-                    if old_org_id not in orgs:
-                        agent.remove_from_org(old_org_id, [user_id])
+                result = agent.set_user_info(user_id, new_info)
 
-                new_info['organisation'] = ','.join(
-                    agent._search_user_in_orgs(user_id))
-                agent.set_user_info(user_id, new_info)
-
-            when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            _set_session_message(
-                REQUEST, 'info', "Profile saved (%s)" % when)
-
-            log.info("%s EDITED USER %s as member of %s",
-                     logged_in_user(REQUEST), user_id, new_org_id)
+            if result is True:
+                when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                _set_session_message(
+                    REQUEST, 'info', "Profile saved (%s)" % when)
+                log.info("%s EDITED USER %s", logged_in_user(REQUEST), user_id)
+            else:
+                _set_session_message(
+                    REQUEST, 'info', "No properties were changed")
 
         REQUEST.RESPONSE.redirect(
             self.absolute_url() + '/edit_user?id=' + user_id)

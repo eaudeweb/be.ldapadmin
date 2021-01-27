@@ -213,6 +213,10 @@ class CommonTemplateLogic(object):
         """ bool, whether supports role mailing lists """
         return NETWORK_NAME == 'Eionet'
 
+    def can_edit_user(self, user_id):
+        return user_id == logged_in_user(self.context.REQUEST) or \
+            self.can_edit_users()
+
     @property
     def can_edit_users(self):
         return self.context.can_edit_users()

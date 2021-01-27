@@ -56,15 +56,16 @@
         </script>
 
         <div xmlns:foaf="http://xmlns.com/foaf/0.1/"
-            tal:attributes="about string:${common/portal_url}/users/${options/user/uid}" typeof="foaf:Person"
             tal:define="user options/user;
-            disabled python:user.get('status') == 'disabled';
-            can_edit_users common/can_edit_users;
-            is_authenticated common/is_authenticated;">
+                user_id user/uid;
+                disabled python:user.get('status') == 'disabled';
+                can_edit_user python:common.can_edit_user(user_id);
+                can_edit_users common/can_edit_users;
+                is_authenticated common/is_authenticated;">
 
             <h1 property="foaf:name">
                 <tal:block content="user/full_name" />
-                <a tal:condition="can_edit_users"
+                <a tal:condition="can_edit_user"
                     style="background:none"
                     tal:attributes="href string:/users/edit_user?id=${user/uid}">
                     <img src="/++resource++be.ldapadmin-www/edit.gif" alt="Edit" />
@@ -104,17 +105,35 @@
                 <tr><th scope="row" class="scope-row">Surname</th>
                     <td tal:content="user/last_name" /></tr>
                 <tr><th scope="row" class="scope-row">Organisations</th>
-                  <td>
-                    <tal:block repeat="org options/orgs">
-                      <tal:block define="org_id python:org[0];
-                                         org_title python:org[1];
-                                         last repeat/org/end">
-                        <a tal:condition="org_title"
-                           tal:content="org_title"
-                           target="_blank"
-                           tal:attributes="href string:/organisations/organisation?id=${org_id}" /><tal:block
-                            condition="not:org_title" tal:content="org_id" /><tal:block
-                            condition="not:repeat/org/end">, </tal:block>
+                  <td tal:define="orgs options/orgs">
+                    <tal:block condition="python:len(orgs)>1">
+                      <ul>
+                        <tal:block repeat="org options/orgs">
+                          <tal:block define="org_id python:org[0];
+                                             org_title python:org[1];
+                                             last repeat/org/end">
+                            <li>
+                              <a tal:condition="org_title"
+                               tal:content="org_title"
+                               target="_blank"
+                               tal:attributes="href string:/organisations/organisation?id=${org_id}" />
+                              <tal:block condition="not:org_title" tal:content="org_id" />
+                            </li>
+                          </tal:block>
+                        </tal:block>
+                      </ul>
+                    </tal:block>
+                    <tal:block condition="python:len(orgs)<2">
+                      <tal:block repeat="org options/orgs">
+                        <tal:block define="org_id python:org[0];
+                                           org_title python:org[1];
+                                           last repeat/org/end">
+                          <a tal:condition="org_title"
+                             tal:content="org_title"
+                             target="_blank"
+                             tal:attributes="href string:/organisations/organisation?id=${org_id}" />
+                          <tal:block condition="not:org_title" tal:content="org_id" />
+                        </tal:block>
                       </tal:block>
                     </tal:block>
                   </td>
