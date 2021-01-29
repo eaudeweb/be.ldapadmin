@@ -3,10 +3,8 @@
 
 from copy import deepcopy
 import logging
-import os
 import random
 import re
-import sqlite3
 import string
 from datetime import datetime
 from zope.component import getUtility
@@ -23,19 +21,16 @@ from Products.Five.browser import BrowserView
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 import colander
 import deform
-from deform.widget import SelectWidget
 import jellyfish
 import ldap
 from unidecode import unidecode
 import xlrd
 from transliterate import translit, get_available_language_codes
-from validate_email import validate_email, INCORRECT_EMAIL
-from naaya.ldapdump.interfaces import IDumpReader
 from be.ldapadmin.schema import user_info_schema, _uid_node, _password_node
-from be.ldapadmin.constants import NETWORK_NAME
+from be.ldapadmin.constants import NETWORK_NAME, USERS_SPECIFIC
 from be.ldapadmin.help_messages import help_messages
 from be.ldapadmin.logic_common import _session_pop, _create_plain_message
-from be.ldapadmin.logic_common import logged_in_user
+from be.ldapadmin.logic_common import logged_in_user, splitlines
 from be.ldapadmin.ui_common import NaayaViewPageTemplateFile
 from be.ldapadmin import ldap_config
 from be.ldapadmin.db_agent import NameAlreadyExists, EmailAlreadyExists
@@ -48,7 +43,7 @@ from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import SessionMessages, TemplateRenderer
 from be.ldapadmin.ui_common import extend_crumbs, TemplateRendererNoWrap
 from be.ldapadmin.constants import ADDR_FROM, HELPDESK_EMAIL
-from be.ldapadmin.constants import LDAP_DISK_STORAGE, LDAP_DB_NAME
+from be.ldapadmin.ldapdump import get_objects_by_ldap_dump
 
 try:
     import simplejson as json
@@ -67,6 +62,8 @@ user_info_add_schema['postal_address'].widget = deform.widget.TextAreaWidget()
 user_info_edit_schema['postal_address'].widget = deform.widget.TextAreaWidget()
 user_info_add_schema['search_helper'].widget = deform.widget.TextAreaWidget()
 user_info_add_schema['department'].widget = deform.widget.TextAreaWidget()
+user_info_add_schema['email'].widget = deform.widget.TextAreaWidget()
+user_info_edit_schema['email'].widget = deform.widget.TextAreaWidget()
 
 password_letters = '23456789ABCDEFGHIJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 
@@ -128,30 +125,8 @@ def manage_add_users_admin(parent, id, REQUEST=None):
         REQUEST.RESPONSE.redirect(parent.absolute_url() + '/manage_workspace')
 
 
-def get_users_by_ldap_dump():
-    DB_FILE = os.path.join(LDAP_DISK_STORAGE, LDAP_DB_NAME)
-    if not os.path.exists(DB_FILE):
-        util = getUtility(IDumpReader)
-        DB_FILE = util.db_path
-        assert os.path.exists(DB_FILE)
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT a.dn as dn, a.value AS cn "
-        "FROM ldapmapping a WHERE a.attr = 'cn' "
-    )
-
-    ldap_user_records = []
-    for data in cursor.fetchall():
-        ldap_user_records.append({'dn': data['dn'],
-                                  'cn': unidecode(data['cn'])})
-    return ldap_user_records
-
-
 def get_duplicates_by_name(name):
-    ldap_users = get_users_by_ldap_dump()
+    ldap_users = get_objects_by_ldap_dump(USERS_SPECIFIC)
 
     records = []
     for user in ldap_users:
@@ -409,31 +384,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             if list(agent.existing_usernames([value])):
                 raise colander.Invalid(node, 'This username is taken')
 
-        skip_email_validation_node = colander.SchemaNode(
-            colander.Boolean(),
-            title='',
-            name='skip_email_validation',
-            description='Skip extended email validation',
-            widget=deform.widget.CheckboxWidget(),
-        )
-
         schema = user_info_add_schema.clone()
-
-        # add the "skip email validation" field if email fails validation
-        email = form_data.get('email')
-        if email:
-            email = email.strip()
-            validity_status = validate_email(email, verify=False, verbose=True)
-            if validity_status is not True:
-                email_node = schema['email']
-                pos = schema.children.index(email_node)
-                schema.children.insert(pos + 1, skip_email_validation_node)
-
-        # if the skip_email_validation field exists but is not activated,
-        # add an extra validation to the form
-        if not (form_data.get('edit-skip_email_validation') == 'on'):
-            schema['email'].validator = colander.All(
-                schema['email'].validator, check_valid_email)
 
         for children in schema.children:
             help_text = help_messages['create-user'].get(children.name, None)
@@ -472,7 +423,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 label = org['text']
             choices.append((org['id'], label))
 
-        widget = SelectWidget(values=choices, multiple=True)
+        widget = deform.widget.SelectWidget(values=choices, multiple=True)
         schema['organisation'].widget = widget
 
         if 'submit' in REQUEST.form:
@@ -595,32 +546,10 @@ class UsersAdmin(SimpleItem, PropertyManager):
                         {'id': org, 'text': org, 'text_native': '',
                          'ldap': False})
             form_data['organisation'] = user_orgs
+        else:
+            form_data['organisation'] = []
         orgs.sort(lambda x, y: cmp(x['text'], y['text']))
         schema = user_info_edit_schema.clone()
-
-        skip_email_validation_node = colander.SchemaNode(
-            colander.Boolean(),
-            title='',
-            name='skip_email_validation',
-            description='Skip extended email validation',
-            widget=deform.widget.CheckboxWidget(),
-        )
-
-        # add the "skip email validation" field if email fails validation
-        email = form_data.get('email')
-        if email:
-            email = email.strip()
-            validity_status = validate_email(email, verify=False, verbose=True)
-            if validity_status is not True:
-                email_node = schema['email']
-                pos = schema.children.index(email_node)
-                schema.children.insert(pos + 1, skip_email_validation_node)
-
-        # if the skip_email_validation field exists but is not activated,
-        # add an extra validation to the form
-        if not (form_data.get('edit-skip_email_validation') == 'on'):
-            schema['email'].validator = colander.All(
-                schema['email'].validator, check_valid_email)
 
         choices = [('', '-')]
         for org in orgs:
@@ -637,7 +566,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 label = org['text']
             choices.append((org['id'], label))
         choices.sort(key=lambda x: x[1].lower())
-        widget = SelectWidget(values=choices)
+        widget = deform.widget.SelectWidget(values=choices)
         schema['organisation'].widget = widget
 
         # if 'disabled@' in form_data.get('email', ''):
@@ -664,11 +593,6 @@ class UsersAdmin(SimpleItem, PropertyManager):
             raise Unauthorized
 
         schema = user_info_edit_schema.clone()
-        # if the skip_email_validation field exists but is not activated,
-        # add an extra validation to the form
-        if not (REQUEST.form.get('edit-skip_email_validation') == 'on'):
-            schema['email'].validator = colander.All(
-                schema['email'].validator, check_valid_email)
 
         user_form = deform.Form(schema)
 
@@ -678,6 +602,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 orgs = [orgs]
             new_info = user_form.validate(REQUEST.form.items())
             new_info['organisation'] = orgs
+            new_info['email'] = splitlines(new_info['email'])
         except deform.ValidationFailure as e:
             session = REQUEST.SESSION
             errors = {}
@@ -1331,14 +1256,6 @@ class MigrateDisabledEmails(BrowserView):
                      user_info['id'])
 
         return "done"
-
-
-def check_valid_email(node, value):
-    validity_status = validate_email(value, verify=False, verbose=True)
-    if validity_status is not True:
-        if validity_status != INCORRECT_EMAIL:  # avoid a double error message
-            raise colander.Invalid(
-                node, 'This email is possibly invalid. %s' % validity_status)
 
 
 def _transliterate(first_name, last_name, full_name_native, search_helper):

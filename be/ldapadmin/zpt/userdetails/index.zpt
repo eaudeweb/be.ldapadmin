@@ -40,6 +40,10 @@
                 font-size:12px;
                 text-align:right;
             }
+            .no-fuss {
+              list-style: none;
+              margin: 0 0 0 -38px;
+            }
         </style>
 
         <script src="/++resource++jquery.min.js"></script>
@@ -129,36 +133,21 @@
                     <td tal:content="user/last_name" /></tr>
                 <tr><th scope="row" class="scope-row">Organisations</th>
                   <td tal:define="orgs options/orgs">
-                    <tal:block condition="python:len(orgs)>1">
-                      <ul>
-                        <tal:block repeat="org options/orgs">
-                          <tal:block define="org_id python:org[0];
-                                             org_title python:org[1];
-                                             last repeat/org/end">
-                            <li>
-                              <a tal:condition="org_title"
-                               tal:content="org_title"
-                               target="_blank"
-                               tal:attributes="href string:/organisations/organisation?id=${org_id}" />
-                              <tal:block condition="not:org_title" tal:content="org_id" />
-                            </li>
-                          </tal:block>
-                        </tal:block>
-                      </ul>
-                    </tal:block>
-                    <tal:block condition="python:len(orgs)<2">
+                    <ul class="no-fuss">
                       <tal:block repeat="org options/orgs">
                         <tal:block define="org_id python:org[0];
                                            org_title python:org[1];
                                            last repeat/org/end">
-                          <a tal:condition="org_title"
+                          <li>
+                            <a tal:condition="org_title"
                              tal:content="org_title"
                              target="_blank"
                              tal:attributes="href string:/organisations/organisation?id=${org_id}" />
-                          <tal:block condition="not:org_title" tal:content="org_id" />
+                            <tal:block condition="not:org_title" tal:content="org_id" />
+                          </li>
                         </tal:block>
                       </tal:block>
-                    </tal:block>
+                    </ul>
                   </td>
                 </tr>
                 <tal:block condition="python:not disabled and is_authenticated or can_edit_users">
@@ -169,8 +158,12 @@
                         <td tal:content="user/department" /></tr>
                     <tr><th scope="row" class="scope-row">Mail</th>
                         <td>
-                          <a tal:attributes="href string:mailto:${user/email}"
-                             tal:content="user/email" />
+                          <ul class="no-fuss">
+                            <li tal:repeat="email user/email">
+                              <a tal:attributes="href string:mailto:${email}"
+                                 tal:content="email" />
+                            </li>
+                          </ul>
                         </tr>
                     <tr><th scope="row" class="scope-row">Telephone</th>
                         <td tal:content="user/phone" /></tr>

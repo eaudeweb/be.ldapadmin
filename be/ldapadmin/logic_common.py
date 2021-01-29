@@ -53,3 +53,12 @@ def load_template(name, context=None, _memo={}):
             _memo[name] = tpl
 
     return _memo[name]
+
+
+def splitlines(value):
+    if isinstance(value, basestring):
+        value = value.replace(',', '\n').splitlines()
+        value = [val.strip() for val in value]
+    if not isinstance(value, list):
+        raise NotImplementedError
+    return value

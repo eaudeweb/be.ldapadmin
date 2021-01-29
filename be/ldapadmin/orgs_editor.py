@@ -831,11 +831,6 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
 
         agent = self._get_ldap_agent(bind=True)
         with agent.new_action():
-            for user_id in user_id_list:
-                old_info = agent.user_info(user_id)
-                old_info['organisation'] = org_id
-                agent.set_user_info(user_id, old_info)
-
             agent.add_to_org(org_id, user_id_list)
 
         _set_session_message(REQUEST, 'info',

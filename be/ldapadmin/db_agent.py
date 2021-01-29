@@ -13,6 +13,7 @@ from ldap.ldapobject import LDAPObject
 from ldap.resiter import ResultProcessor
 from _backport import wraps
 from be.ldapadmin.constants import LDAP_PROTOCOL
+from be.ldapadmin.logic_common import splitlines
 
 log = logging.getLogger(__name__)
 
@@ -170,6 +171,7 @@ class RoleRenameError(Exception):
 
 
 editable_user_fields = sorted(LDAP_USER_SCHEMA)
+multivalue_user_fields = ['email', 'organisation']
 editable_org_fields = list(LDAP_ORG_SCHEMA)  # TODO + ['organisation_links']
 
 
@@ -832,8 +834,7 @@ class UsersDB(object):
                                user_info.get('last_name', u""))
         user_info['full_name'] = full_name.strip()
 
-    def _user_info_diff(self, user_id, old_info, new_info,
-                        add_to_orgs, remove_from_orgs):
+    def _user_info_diff(self, user_id, old_info, new_info, multi_value):
         def pack(value):
             return [value.encode(self._encoding)]
 
@@ -850,11 +851,9 @@ class UsersDB(object):
 
         for name in editable_user_fields:
             ldap_name = self.user_schema[name]
-            if name == 'organisation':
-                for org in remove_from_orgs:
-                    do(ldap.MOD_DELETE, ldap_name, pack(org))
-                for org in add_to_orgs:
-                    do(ldap.MOD_ADD, ldap_name, pack(org))
+            if name in multivalue_user_fields:
+                for value, mod in multi_value.get(name):
+                    do(mod, ldap_name, pack(value))
             else:
                 old_value = old_info.get(name, u"")
                 new_value = new_info.get(name, u"")
@@ -881,26 +880,49 @@ class UsersDB(object):
 
     @log_ldap_exceptions
     def set_user_info(self, user_id, new_info):
+        multi_value = {}
         old_info = self.user_info(user_id)
         orgs_with_user = self._search_user_in_orgs(user_id)
         user_orgs = old_info.get('organisation')
         if user_orgs:
-            user_orgs = user_orgs.split(', ')
+            user_orgs = splitlines(user_orgs)
         else:
             user_orgs = []
         existing_orgs = list(set(orgs_with_user).union(set(user_orgs)))
         new_orgs = new_info.get('organisation')
         add_to_orgs = list(set(new_orgs) - set(existing_orgs))
         remove_from_orgs = list(set(existing_orgs) - set(new_orgs))
-        diff = self._user_info_diff(user_id, old_info, new_info,
-                                    add_to_orgs, remove_from_orgs)
+        multi_value['organisation'] = [(org, ldap.MOD_DELETE)
+                                       for org in remove_from_orgs]
+        multi_value['organisation'].extend([(org, ldap.MOD_ADD)
+                                            for org in add_to_orgs])
+        user_emails = old_info.get('email')
+        if user_emails:
+            user_emails = splitlines(user_emails)
+        else:
+            user_emails = []
+        new_emails = new_info.get('email')
+        if new_emails:
+            new_emails = splitlines(new_emails)
+        emails_to_add = list(set(new_emails) - set(user_emails))
+        emails_to_remove = list(set(user_emails) - set(new_emails))
+        multi_value['email'] = [(org, ldap.MOD_DELETE)
+                                for org in emails_to_remove]
+        multi_value['email'].extend([(org, ldap.MOD_ADD)
+                                     for org in emails_to_add])
+        import pdb; pdb.set_trace()
+        diff = self._user_info_diff(user_id, old_info, new_info, multi_value)
         if not diff:
             return
+        # add/remove users from respective organisations
+        # add skip_o flag to not come back to this method again to
+        # re-set the o property
         for org in remove_from_orgs:
-            self.remove_from_org(org, [user_id])
+            self.remove_from_org(org, [user_id], skip_o=True)
         for org in add_to_orgs:
-            self.add_to_org(org, [user_id])
+            self.add_to_org(org, [user_id], skip_o=True)
 
+        # make changes on the user object (additional to the ones on the org)
         log.info("Modifying info for user %r", user_id)
         for dn, modify_statements in diff.iteritems():
             result = self.conn.modify_s(dn, tuple(modify_statements))
@@ -1383,7 +1405,7 @@ class UsersDB(object):
         return bool(result)
 
     @log_ldap_exceptions
-    def add_to_org(self, org_id, user_id_list):
+    def add_to_org(self, org_id, user_id_list, skip_o=False):
         assert self._bound, "call `perform_bind` before `add_to_org`"
         log.info("Adding users %r to organisation %r", user_id_list, org_id)
 
@@ -1409,9 +1431,17 @@ class UsersDB(object):
 
         result = self.conn.modify_s(self._org_dn(org_id), changes)
         assert result[:2] == (ldap.RES_MODIFY, [])
+        # also add the org info to the `o` property of each user
+        # if not instructed not to go back there
+        if not skip_o:
+            for user_id in user_id_list:
+                org_info = self.user_info(user_id)
+                if org_info:
+                    org_info['organisation'].split(', ').append(org_id)
+                    self.set_user_info(user_id, org_info)
 
     @log_ldap_exceptions
-    def remove_from_org(self, org_id, user_id_list):
+    def remove_from_org(self, org_id, user_id_list, skip_o=False):
         assert self._bound, "call `perform_bind` before `remove_from_org`"
         log.info("Removing users %r from organisation %r",
                  user_id_list, org_id)
@@ -1438,6 +1468,18 @@ class UsersDB(object):
                 # TODO re-enable org changelog
                 # self.add_change_record(org_dn, REMOVED_MEMBER_FROM_ORG,
                 #                       {'member': user_id})
+
+            # also make the change on the `o` property of each user
+            # if not instructed not to go back there
+            if not skip_o:
+                for user_id in user_id_list:
+                    user_info = self.user_info(user_id)
+                    org_info = user_info['organisation']
+                    if org_info:
+                        org_info = list(
+                            set(user_info['organisation'].split(', ')) -
+                            set(org_id))
+                        self.set_user_info(user_id, user_info)
         except ldap.NO_SUCH_ATTRIBUTE as e:
             if 'no such value' not in e[0]['info']:
                 raise
@@ -1484,6 +1526,8 @@ class UsersDB(object):
     def delete_org(self, org_id):
         """ Delete the organisation `org_id` """
         assert self._bound, "call `perform_bind` before `delete_org`"
+        # first remove all members
+        self.remove_from_org(org_id, self.members_in_org(org_id))
         log.info("Deleting organisation %r", org_id)
         result = self.conn.delete_s(self._org_dn(org_id))
         assert result[:2] == (ldap.RES_DELETE, [])

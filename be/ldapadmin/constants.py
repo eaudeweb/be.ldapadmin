@@ -26,6 +26,10 @@ LDAP_DB_NAME = getattr(cfg, 'environment', {}).get(
     'LDAP_DB_NAME', os.environ.get('LDAP_DB_NAME', ''))
 LDAP_PROTOCOL = getattr(cfg, 'environment', {}).get(
     'LDAP_PROTOCOL', os.environ.get('PROTOCOL', 'ldap'))
+USERS_SPECIFIC = getattr(cfg, 'environment', {}).get(
+    'USERS_SPECIFIC', os.environ.get('USERS_SPECIFIC', 'IRCusers'))
+ORGS_SPECIFIC = getattr(cfg, 'environment', {}).get(
+    'ORGS_SPECIFIC', os.environ.get('ORGS_SPECIFIC', 'IRCnodes'))
 
 USER_INFO_KEYS = [
     'status', 'last_name', 'uid', 'full_name', 'id',
