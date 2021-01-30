@@ -13,7 +13,7 @@ from ldap.ldapobject import LDAPObject
 from ldap.resiter import ResultProcessor
 from _backport import wraps
 from be.ldapadmin.constants import LDAP_PROTOCOL
-from be.ldapadmin.logic_common import splitlines
+from be.ldapadmin.logic_common import split_to_list
 
 log = logging.getLogger(__name__)
 
@@ -171,7 +171,6 @@ class RoleRenameError(Exception):
 
 
 editable_user_fields = sorted(LDAP_USER_SCHEMA)
-multivalue_user_fields = ['email', 'organisation']
 editable_org_fields = list(LDAP_ORG_SCHEMA)  # TODO + ['organisation_links']
 
 
@@ -834,7 +833,7 @@ class UsersDB(object):
                                user_info.get('last_name', u""))
         user_info['full_name'] = full_name.strip()
 
-    def _user_info_diff(self, user_id, old_info, new_info, multi_value):
+    def _user_info_diff(self, user_id, old_info, new_info):
         def pack(value):
             return [value.encode(self._encoding)]
 
@@ -842,6 +841,19 @@ class UsersDB(object):
         old_info = dict(old_info)
         new_info = dict(new_info)
         self._update_full_name(new_info)
+
+        user_emails = old_info.get('email')
+        if user_emails:
+            user_emails = split_to_list(user_emails)
+        else:
+            user_emails = []
+        new_emails = new_info.get('email')
+        if new_emails:
+            new_emails = split_to_list(new_emails)
+        emails_to_add = list(set(new_emails) - set(user_emails))
+        emails_to_remove = list(set(user_emails) - set(new_emails))
+        email_info = [(email, ldap.MOD_DELETE) for email in emails_to_remove]
+        email_info.extend([(email, ldap.MOD_ADD) for email in emails_to_add])
 
         # compute delta
         modify_statements = []
@@ -851,9 +863,13 @@ class UsersDB(object):
 
         for name in editable_user_fields:
             ldap_name = self.user_schema[name]
-            if name in multivalue_user_fields:
-                for value, mod in multi_value.get(name):
+            if name == 'email':
+                for value, mod in email_info:
                     do(mod, ldap_name, pack(value))
+            elif name == 'organisation':
+                # organisations are treated by their own methods
+                # remove_from_org, add_to_org
+                continue
             else:
                 old_value = old_info.get(name, u"")
                 new_value = new_info.get(name, u"")
@@ -880,47 +896,25 @@ class UsersDB(object):
 
     @log_ldap_exceptions
     def set_user_info(self, user_id, new_info):
-        multi_value = {}
         old_info = self.user_info(user_id)
         orgs_with_user = self._search_user_in_orgs(user_id)
         user_orgs = old_info.get('organisation')
         if user_orgs:
-            user_orgs = splitlines(user_orgs)
+            user_orgs = split_to_list(user_orgs)
         else:
             user_orgs = []
         existing_orgs = list(set(orgs_with_user).union(set(user_orgs)))
         new_orgs = new_info.get('organisation')
         add_to_orgs = list(set(new_orgs) - set(existing_orgs))
         remove_from_orgs = list(set(existing_orgs) - set(new_orgs))
-        multi_value['organisation'] = [(org, ldap.MOD_DELETE)
-                                       for org in remove_from_orgs]
-        multi_value['organisation'].extend([(org, ldap.MOD_ADD)
-                                            for org in add_to_orgs])
-        user_emails = old_info.get('email')
-        if user_emails:
-            user_emails = splitlines(user_emails)
-        else:
-            user_emails = []
-        new_emails = new_info.get('email')
-        if new_emails:
-            new_emails = splitlines(new_emails)
-        emails_to_add = list(set(new_emails) - set(user_emails))
-        emails_to_remove = list(set(user_emails) - set(new_emails))
-        multi_value['email'] = [(org, ldap.MOD_DELETE)
-                                for org in emails_to_remove]
-        multi_value['email'].extend([(org, ldap.MOD_ADD)
-                                     for org in emails_to_add])
-        import pdb; pdb.set_trace()
-        diff = self._user_info_diff(user_id, old_info, new_info, multi_value)
-        if not diff:
+        diff = self._user_info_diff(user_id, old_info, new_info)
+        if not (diff or add_to_orgs or remove_from_orgs):
             return
         # add/remove users from respective organisations
-        # add skip_o flag to not come back to this method again to
-        # re-set the o property
         for org in remove_from_orgs:
-            self.remove_from_org(org, [user_id], skip_o=True)
+            self.remove_from_org(org, [user_id])
         for org in add_to_orgs:
-            self.add_to_org(org, [user_id], skip_o=True)
+            self.add_to_org(org, [user_id])
 
         # make changes on the user object (additional to the ones on the org)
         log.info("Modifying info for user %r", user_id)
@@ -1405,84 +1399,77 @@ class UsersDB(object):
         return bool(result)
 
     @log_ldap_exceptions
-    def add_to_org(self, org_id, user_id_list, skip_o=False):
+    def add_to_org(self, org_id, user_id_list):
         assert self._bound, "call `perform_bind` before `add_to_org`"
         log.info("Adding users %r to organisation %r", user_id_list, org_id)
 
         # record this change in the user's log
         users = [(user_id, str(self._user_dn(user_id)))
                  for user_id in user_id_list]
-        # org_dn = self._org_dn(org_id)
 
         for user_id, user_dn in users:
+            # also add the org to the user's `o` property
+            result = self.conn.modify_s(
+                user_dn,
+                ((ldap.MOD_ADD, 'o', [org_id.encode(self._encoding)]),))
+            assert result[:2] == (ldap.RES_MODIFY, [])
             self.add_change_record(user_dn, ADD_TO_ORG,
                                    {'organisation': org_id})
             # TODO re-enable org changelog
             # self.add_change_record(org_dn, ADDED_MEMBER_TO_ORG,
             #                       {'member': user_id})
 
-        changes = (
+        org_changes = (
             (ldap.MOD_ADD, 'uniqueMember', [dn for uid, dn in users]),
         )
 
         if not self.members_in_org(org_id):
-            # we are removing all members; add placeholder value
-            changes += ((ldap.MOD_DELETE, 'uniqueMember', ['']),)
+            # if the org was empty, we need to remove the placeholder value
+            org_changes += ((ldap.MOD_DELETE, 'uniqueMember', ['']),)
 
-        result = self.conn.modify_s(self._org_dn(org_id), changes)
+        result = self.conn.modify_s(self._org_dn(org_id), org_changes)
         assert result[:2] == (ldap.RES_MODIFY, [])
-        # also add the org info to the `o` property of each user
-        # if not instructed not to go back there
-        if not skip_o:
-            for user_id in user_id_list:
-                org_info = self.user_info(user_id)
-                if org_info:
-                    org_info['organisation'].split(', ').append(org_id)
-                    self.set_user_info(user_id, org_info)
 
     @log_ldap_exceptions
-    def remove_from_org(self, org_id, user_id_list, skip_o=False):
+    def remove_from_org(self, org_id, user_id_list):
         assert self._bound, "call `perform_bind` before `remove_from_org`"
         log.info("Removing users %r from organisation %r",
                  user_id_list, org_id)
 
         # record this change in the user's log
+        org_members = self.members_in_org(org_id)
         users = [(user_id, self._user_dn(user_id)) for user_id in user_id_list]
         org_dn = self._org_dn(org_id)
 
-        user_dn_list = [user_dn for (user_id, user_dn) in users]
-        changes = ((ldap.MOD_DELETE, 'uniqueMember', user_dn_list), )
+        user_dn_list = [user_dn for (user_id, user_dn) in users if
+                        user_id in org_members]
+        if user_dn_list:
+            changes = ((ldap.MOD_DELETE, 'uniqueMember', user_dn_list), )
 
-        # Check if any member remain, add placeholder value in
-        # case there will be None
-        if not (set(self.members_in_org(org_id)) - set(user_id_list)):
-            changes = ((ldap.MOD_ADD, 'uniqueMember', ['']),) + changes
+            # Check if any member remain, add placeholder value in
+            # case there will be None
+            if not (set(org_members) - set(user_id_list)):
+                changes = ((ldap.MOD_ADD, 'uniqueMember', ['']),) + changes
 
-        try:
-            result = self.conn.modify_s(org_dn, changes)
+            try:
+                result = self.conn.modify_s(org_dn, changes)
+                assert result[:2] == (ldap.RES_MODIFY, [])
+            except ldap.NO_SUCH_ATTRIBUTE as e:
+                if 'no such value' not in e[0]['info']:
+                    raise
+
+        for user_id, user_dn in users:
+            # also remove the org from the user's `o` property
+            result = self.conn.modify_s(
+                user_dn,
+                ((ldap.MOD_DELETE, 'o', [org_id.encode(self._encoding)]),))
             assert result[:2] == (ldap.RES_MODIFY, [])
-            for user_id, user_dn in users:
-                self.add_change_record(user_dn, REMOVED_FROM_ORG, {
-                    'organisation': org_id,
-                })
-                # TODO re-enable org changelog
-                # self.add_change_record(org_dn, REMOVED_MEMBER_FROM_ORG,
-                #                       {'member': user_id})
-
-            # also make the change on the `o` property of each user
-            # if not instructed not to go back there
-            if not skip_o:
-                for user_id in user_id_list:
-                    user_info = self.user_info(user_id)
-                    org_info = user_info['organisation']
-                    if org_info:
-                        org_info = list(
-                            set(user_info['organisation'].split(', ')) -
-                            set(org_id))
-                        self.set_user_info(user_id, user_info)
-        except ldap.NO_SUCH_ATTRIBUTE as e:
-            if 'no such value' not in e[0]['info']:
-                raise
+            self.add_change_record(user_dn, REMOVED_FROM_ORG, {
+                'organisation': org_id,
+            })
+            # TODO re-enable org changelog
+            # self.add_change_record(org_dn, REMOVED_MEMBER_FROM_ORG,
+            #                       {'member': user_id})
 
     @log_ldap_exceptions
     def rename_org(self, org_id, new_org_id):

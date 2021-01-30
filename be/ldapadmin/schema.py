@@ -1,7 +1,7 @@
 import re
 import colander
 import phonenumbers
-from be.ldapadmin.logic_common import splitlines
+from be.ldapadmin.logic_common import split_to_list
 
 INVALID_PHONE_MESSAGES = (
     ("Invalid telephone number. It must be written "
@@ -76,7 +76,7 @@ _url_validator = colander.Regex(r'^http[s]?\://', msg=INVALID_URL)
 
 def _email_validator(node, value):
     if not isinstance(value, list):
-        values = splitlines(value)
+        values = split_to_list(value)
     pattern = (r"(?:^|\s)[-a-z-A-Z0-9_.']+@(?:[-a-z-A-Z0-9]+\.)+[a-z-A-Z]"
                r"{2,63}(?:\s|$)")
     for email in values:

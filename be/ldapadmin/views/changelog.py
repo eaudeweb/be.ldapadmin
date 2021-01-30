@@ -4,7 +4,6 @@ from zope.component import getMultiAdapter
 from zope.interface import Interface, Attribute, implements
 from DateTime.DateTime import DateTime
 from Products.Five import BrowserView
-from be.ldapadmin.ldapdump import get_objects_by_ldap_dump
 
 
 class IActionDetails(Interface):
@@ -184,6 +183,7 @@ class BaseOrganisationDetails(object):
 
     @property
     def organisation(self):
+        out = []
         for entry in self.entry['data']:
             org = entry.get('organisation')
             if org:
@@ -191,14 +191,16 @@ class BaseOrganisationDetails(object):
                     org.strip())['name']
                 if not name:
                     name = org.title().replace('_', ' ')
-                return {'id': org, 'name': name}
+                out.append({'id': org, 'name': name})
 
-        return ""
+        return sorted(out, key=lambda x: x['id'])
 
     @property
     def organisation_id(self):
+        out = []
         for entry in self.entry['data']:
-            return entry.get('organisation')
+            out.append(entry.get('organisation'))
+        return sorted(out)
 
 
 class EnableAccount(BaseActionDetails):

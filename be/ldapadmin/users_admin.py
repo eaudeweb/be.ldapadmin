@@ -30,7 +30,7 @@ from be.ldapadmin.schema import user_info_schema, _uid_node, _password_node
 from be.ldapadmin.constants import NETWORK_NAME, USERS_SPECIFIC
 from be.ldapadmin.help_messages import help_messages
 from be.ldapadmin.logic_common import _session_pop, _create_plain_message
-from be.ldapadmin.logic_common import logged_in_user, splitlines
+from be.ldapadmin.logic_common import logged_in_user, split_to_list
 from be.ldapadmin.ui_common import NaayaViewPageTemplateFile
 from be.ldapadmin import ldap_config
 from be.ldapadmin.db_agent import NameAlreadyExists, EmailAlreadyExists
@@ -536,7 +536,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                  'ldap': True} for k, v in orgs.items()]
         user_orgs = form_data.get('organisation')
         if user_orgs:
-            user_orgs = user_orgs.split(',')
+            user_orgs = split_to_list(user_orgs)
             # Some users have free text, non-existent orgs saved on
             # their profile, add those to the select options
             orgs_with_user = agent._search_user_in_orgs(user_id)
@@ -602,7 +602,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 orgs = [orgs]
             new_info = user_form.validate(REQUEST.form.items())
             new_info['organisation'] = orgs
-            new_info['email'] = splitlines(new_info['email'])
+            new_info['email'] = split_to_list(new_info['email'])
         except deform.ValidationFailure as e:
             session = REQUEST.SESSION
             errors = {}

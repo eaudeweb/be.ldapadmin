@@ -1,4 +1,7 @@
-<tal:block define="org view/organisation">
-<a tal:condition="org" tal:attributes="href string:/organisations/organisation?id=${org/id|org}" tal:content="org/name|org" />
-  <tal:block condition="not:org" content="string:${view/organisation_id} (since then deleted)" />
-</tal:block>
+<ul class="no-fuss">
+  <li tal:repeat="org view/organisation">
+    <a tal:attributes="href string:/organisations/organisation?id=${org/id}" tal:content="org/name" />
+  </li>
+  <li tal:condition="not:view/organisation"
+      tal:repeat="org view/organisation_id" tal:content="string:${org} (deleted in the mean time)" />
+</ul>

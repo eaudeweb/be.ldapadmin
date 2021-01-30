@@ -21,7 +21,7 @@ from ldap import CONSTRAINT_VIOLATION, NO_SUCH_OBJECT, SCOPE_BASE
 from be.ldapadmin.constants import NETWORK_NAME, ADDR_FROM
 from be.ldapadmin import ldap_config
 from be.ldapadmin.logic_common import _is_authenticated, logged_in_user
-from be.ldapadmin.logic_common import load_template, splitlines
+from be.ldapadmin.logic_common import load_template, split_to_list
 from be.ldapadmin.ui_common import TemplateRenderer, CommonTemplateLogic
 
 ldap_edit_users = 'LDAP edit users'
@@ -124,7 +124,7 @@ class UserDetails(SimpleItem):
             roles.append((role_id,
                           attrs.get('description', ('', ))[0].decode('utf8')))
         user = agent.user_info(uid)
-        user['email'] = splitlines(user['email'])
+        user['email'] = split_to_list(user['email'])
         user['jpegPhoto'] = agent.get_profile_picture(uid)
         user['certificate'] = agent.get_certificate(uid)
         if user['orgs']:
