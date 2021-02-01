@@ -402,12 +402,15 @@ class UsersAdmin(SimpleItem, PropertyManager):
         orgs = [{'id': k, 'text': v['name'], 'text_native': v['name_native'],
                  'ldap':True}
                 for k, v in agent_orgs.items()]
-        form_orgs = list(form_data.get('organisation'))
-        for org in form_orgs:
-            if org and not (org in agent_orgs):
-                orgs.append({'id': org, 'text': org, 'text_native': '',
-                             'ldap': False})
-        orgs.sort(lambda x, y: cmp(x['text'], y['text']))
+        form_orgs = form_data.get('organisation')
+        if form_orgs:
+            form_orgs = split_to_list(form_orgs)
+            for org in form_orgs:
+                if org and not (org in agent_orgs):
+                    orgs.append({'id': org, 'text': org, 'text_native': '',
+                                 'ldap': False})
+        else:
+            form_data['organisation'] = []
         choices = [('-', '-')]
         for org in orgs:
             if org['ldap']:
@@ -422,6 +425,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             else:
                 label = org['text']
             choices.append((org['id'], label))
+        choices.sort(key=lambda x: x[1].lower())
 
         widget = deform.widget.SelectWidget(values=choices, multiple=True)
         schema['organisation'].widget = widget
@@ -445,6 +449,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 agent = self._get_ldap_agent(bind=True)
                 with agent.new_action():
                     user_info.pop('skip_email_validation', None)
+                    user_info.pop('organisation', None)
                     try:
                         self._create_user(agent, user_info)
                     except NameAlreadyExists:
@@ -548,7 +553,6 @@ class UsersAdmin(SimpleItem, PropertyManager):
             form_data['organisation'] = user_orgs
         else:
             form_data['organisation'] = []
-        orgs.sort(lambda x, y: cmp(x['text'], y['text']))
         schema = user_info_edit_schema.clone()
 
         choices = [('', '-')]
@@ -568,11 +572,6 @@ class UsersAdmin(SimpleItem, PropertyManager):
         choices.sort(key=lambda x: x[1].lower())
         widget = deform.widget.SelectWidget(values=choices)
         schema['organisation'].widget = widget
-
-        # if 'disabled@' in form_data.get('email', ''):
-        #     user_dn = agent._user_dn(user_id)
-        #     form_data['email'] = "disabled - %s" % \
-        #         agent.get_email_for_disabled_user_dn(user_dn)
 
         options = {'user': user,
                    'my_account': user_id == logged_in_user(REQUEST),
@@ -767,13 +766,14 @@ class UsersAdmin(SimpleItem, PropertyManager):
         message['Subject'] = "%s Account - account enabled" % NETWORK_NAME
         try:
             mailer = getUtility(IMailDelivery, name="Mail")
-            mailer.send(addr_from, [addr_to], message.as_string())
+            mailer.send(addr_from, split_to_list(addr_to), message.as_string())
         except ComponentLookupError:
             mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
             try:
-                mailer.send(addr_from, [addr_to], message.as_string())
+                mailer.send(addr_from, split_to_list(addr_to),
+                            message.as_string())
             except (ValueError, AssertionError):
-                mailer.send(addr_from, [addr_to], message)
+                mailer.send(addr_from, split_to_list(addr_to), message)
 
         when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if restore_roles:
@@ -820,10 +820,10 @@ class UsersAdmin(SimpleItem, PropertyManager):
         message['Subject'] = "%s Account - New password" % NETWORK_NAME
         try:
             mailer = getUtility(IMailDelivery, name="Mail")
-            mailer.send(addr_from, [addr_to], message.as_string())
+            mailer.send(addr_from, split_to_list(addr_to), message.as_string())
         except ComponentLookupError:
             mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
-            mailer.send(addr_from, [addr_to], message)
+            mailer.send(addr_from, split_to_list(addr_to), message)
 
         _set_session_message(REQUEST, 'info',
                              'Password changed for "%s".' % id)
@@ -993,13 +993,13 @@ InitializeClass(UsersAdmin)
 def _send_email(addr_from, addr_to, message):
     try:
         mailer = getUtility(IMailDelivery, name="Mail")
-        mailer.send(addr_from, [addr_to], message.as_string())
+        mailer.send(addr_from, split_to_list(addr_to), message.as_string())
     except ComponentLookupError:
         mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
         try:
-            mailer.send(addr_from, [addr_to], message.as_string())
+            mailer.send(addr_from, split_to_list(addr_to), message.as_string())
         except (ValueError, AssertionError):
-            mailer.send(addr_from, [addr_to], message)
+            mailer.send(addr_from, split_to_list(addr_to), message)
 
 
 class BulkUserImporter(BrowserView):

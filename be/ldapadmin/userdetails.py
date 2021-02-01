@@ -340,10 +340,11 @@ class UserDetails(SimpleItem):
 
             try:
                 mailer = getUtility(IMailDelivery, name="Mail")
-                mailer.send(ADDR_FROM, [addr_to], message.as_string())
+                mailer.send(ADDR_FROM, split_to_list(addr_to),
+                            message.as_string())
             except ComponentLookupError:
                 mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
-                mailer.send(ADDR_FROM, [addr_to], message)
+                mailer.send(ADDR_FROM, split_to_list(addr_to), message)
 
         except ValueError:
             _set_session_message(REQUEST, 'error', "Old password is wrong")

@@ -98,7 +98,12 @@
                     <span tal:content="user_info/full_name"/>
                 </td>
                 <td>
-                    <span tal:content="user_info/email"/>
+                  <tal:block repeat="email python:user_info['email'].split(', ')">
+                    <span tal:condition="not:repeat/email/end"
+                          tal:content="string:${email), "/>
+                    <span tal:condition="repeat/email/end"
+                          tal:content="email"/>
+                  </tal:block>
                 </td>
                 <td>
                     <span tal:content="user_id"/>

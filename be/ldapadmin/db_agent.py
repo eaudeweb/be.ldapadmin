@@ -796,26 +796,41 @@ class UsersDB(object):
         for name, value in sorted(user_info.iteritems()):
             if value == "":
                 continue
-            attrs.append(
-                (self.user_schema[name], [value.encode(self._encoding)]))
-            # for custom RDN branch
-            attr_dict[attrs[-1][0]] = attrs[-1][1][0]
+            if name == 'email':
+                value = split_to_list(value)
+                attr_dict[self.user_schema['email']] = value
+            else:
+                attrs.append(
+                    (self.user_schema[name], [value.encode(self._encoding)]))
+                # for custom RDN branch
+                attr_dict[attrs[-1][0]] = attrs[-1][1][0]
 
-        email = attr_dict[self.user_schema['email']]
-        if self.search_user_by_email(email):
-            raise EmailAlreadyExists(email)
+        emails = split_to_list(attr_dict[self.user_schema['email']])
+        if self.search_user_by_email(emails):
+            raise EmailAlreadyExists(emails)
+        else:
+            modify_statements = []
+            for email in emails:
+                modify_statements.append(
+                    (ldap.MOD_ADD, 'mail', [email.encode(self._encoding)]))
 
         try:
             if self._user_rdn in ('', 'uid'):
-                result = self.conn.add_s(self._user_dn(new_user_id), attrs)
+                user_dn = self._user_dn(new_user_id)
+                result = self.conn.add_s(user_dn, attrs)
+                email_result = self.conn.modify_s(user_dn,
+                                                  tuple(modify_statements))
             else:  # custom RDN branch
                 result = self.conn.add_s(
                     self._user_dn(new_user_id,
                                   rdn_value=attr_dict[self._user_rdn]), attrs)
+                email_result = self.conn.modify_s(user_dn,
+                                                  tuple(modify_statements))
 
         except ldap.ALREADY_EXISTS:
             raise NameAlreadyExists("User %r already exists" % new_user_id)
         assert result[:2] == (ldap.RES_ADD, [])
+        assert email_result[:2] == (ldap.RES_MODIFY, [])
 
     @log_ldap_exceptions
     def set_user_password(self, user_id, old_pw, new_pw):
@@ -868,7 +883,7 @@ class UsersDB(object):
                     do(mod, ldap_name, pack(value))
             elif name == 'organisation':
                 # organisations are treated by their own methods
-                # remove_from_org, add_to_org
+                # remove_from_org, add_to_org which will be called later
                 continue
             else:
                 old_value = old_info.get(name, u"")
@@ -1735,17 +1750,22 @@ class UsersDB(object):
     @log_ldap_exceptions
     def search_user_by_email(self, email, no_disabled=False):
         disabled_filter = no_disabled and "(!(employeeType=*disabled*))" or ''
+        email = split_to_list(email)
 
-        try:
-            query = email.encode(self._encoding)
-        except UnicodeDecodeError:
-            # the email cannot be encoded so is likely not compliant
-            return []
-        pattern = '(&(objectClass=person){0}(mail=%s))'.format(disabled_filter)
-        query_filter = ldap.filter.filter_format(pattern, (query,))
+        result = []
+        for mail in email:
+            try:
+                query = mail.encode(self._encoding)
+            except UnicodeDecodeError:
+                # the email cannot be encoded so is likely not compliant
+                return []
+            pattern = '(&(objectClass=person){0}(mail=%s))'.format(
+                disabled_filter)
+            query_filter = ldap.filter.filter_format(pattern, (query,))
 
-        result = self.conn.search_s(self._user_dn_suffix, ldap.SCOPE_ONELEVEL,
-                                    filterstr=query_filter)
+            result.extend(
+                self.conn.search_s(self._user_dn_suffix, ldap.SCOPE_ONELEVEL,
+                                   filterstr=query_filter))
 
         return [self._unpack_user_info(dn, attr) for (dn, attr) in result]
 

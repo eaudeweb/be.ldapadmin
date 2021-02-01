@@ -9,9 +9,6 @@ import operator
 import os
 import re
 from StringIO import StringIO
-from zope.component import getUtility
-from zope.component.interfaces import ComponentLookupError
-from zope.sendmail.interfaces import IMailDelivery
 from AccessControl import ClassSecurityInfo
 from AccessControl.Permissions import view, view_management_screens
 from AccessControl.unauthorized import Unauthorized
@@ -23,14 +20,13 @@ from OFS.PropertyManager import PropertyManager
 from OFS.SimpleItem import SimpleItem
 from ldap import NO_SUCH_OBJECT
 from ldap import INVALID_DN_SYNTAX
-from be.ldapadmin.logic_common import _create_plain_message
 from persistent.mapping import PersistentMapping
 import ldap
 import ldap_config
 import xlwt
 from be.ldapadmin.db_agent import UserNotFound, NameAlreadyExists
 from be.ldapadmin.db_agent import OrgRenameError, editable_org_fields
-from be.ldapadmin.constants import NETWORK_NAME, USER_INFO_KEYS
+from be.ldapadmin.constants import USER_INFO_KEYS
 from be.ldapadmin.countries import get_country_options  # , get_country
 from be.ldapadmin.ui_common import extend_crumbs, CommonTemplateLogic
 from be.ldapadmin.ui_common import SessionMessages
@@ -652,36 +648,6 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
                                 org_id),
                                ('Members', '#')])
         return self._render_template('zpt/orgs_members.zpt', **options)
-
-    def notify_on_membership_op(self, user_info, org_info, operation):
-        addr_from = ADDR_FROM
-        addr_to = user_info['email']
-
-        if operation == 'approval':
-            email_template = load_template('zpt/org_membership_approved.zpt')
-            subject = "%s: Approved organisation membership" % NETWORK_NAME
-        elif operation == 'rejection':
-            email_template = load_template('zpt/org_membership_rejected.zpt')
-            subject = "%s: Rejected organisation membership" % NETWORK_NAME
-
-        options = {
-            'org_info': org_info,
-            'user_info': user_info,
-            'context': self,
-            'network_name': NETWORK_NAME
-        }
-        message = _create_plain_message(
-            email_template(**options).encode('utf-8'))
-        message['From'] = addr_from
-        message['To'] = user_info['email']
-        message['Subject'] = subject
-
-        try:
-            mailer = getUtility(IMailDelivery, name="Mail")
-            mailer.send(addr_from, [addr_to], message.as_string())
-        except ComponentLookupError:
-            mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
-            mailer.send(addr_from, [addr_to], message)
 
     security.declareProtected(ldap_edit_orgs, 'demo_members')
 

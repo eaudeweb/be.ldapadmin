@@ -40,7 +40,14 @@
                     <td tal:content="org/name" />
                     <td tal:content="member/id" />
                     <td tal:content="member/full_name" />
-                    <td tal:content="member/email" />
+                    <td>
+                      <tal:block repeat="email python:member['email'].split(', ')">
+                        <tal:block content="string:${email}, "
+                          condition="not:repeat/email/end"/>
+                        <tal:block content="string:${email}"
+                          condition="repeat/email/end"/>
+                        </tal:block>
+                    </td>
                 </tr>
                 <tr tal:condition="python: not repeat['member'].start()">
                     <td>&nbsp;</td>
@@ -48,7 +55,14 @@
                     <td>&nbsp;</td>
                     <td tal:content="member/id" />
                     <td tal:content="member/full_name" />
-                    <td tal:content="member/email" />
+                    <td>
+                      <tal:block repeat="email python:member['email'].split(', ')">
+                        <tal:block content="string:${email}, "
+                          condition="not:repeat/email/end"/>
+                        <tal:block content="string:${email}"
+                          condition="repeat/email/end"/>
+                        </tal:block>
+                    </td>
                 </tr>
             </tal:block>
             <tr tal:condition="python: not org['members']">
