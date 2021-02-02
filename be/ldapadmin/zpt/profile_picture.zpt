@@ -6,7 +6,7 @@
 </h1>
 
 <div class="account-links">
-    <a tal:attributes="href string:/user?uid=${options/user_id}/" class="button"
+    <a tal:attributes="href string:/user?uid=${options/user_id}" class="button"
        title="Back to account information">
         <img src="/++resource++be.ldapadmin-www/back.png" class="middle-image image12"
              alt="" title="Back to account information" />
