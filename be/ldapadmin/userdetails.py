@@ -152,9 +152,13 @@ class UserDetails(SimpleItem):
 
     def index_html(self, REQUEST):
         """ """
+        is_auth = _is_authenticated(REQUEST)
         uid = REQUEST.form.get('uid')
+        if not uid and is_auth:
+            uid = logged_in_user(REQUEST)
         if not uid:
-            # a missing uid can only mean this page is called by accident
+            # a missing uid while unauthenticated can only mean this page
+            # is called by accident
             return
         date_for_roles = REQUEST.form.get('date_for_roles')
 
@@ -166,7 +170,6 @@ class UserDetails(SimpleItem):
             multi = None
             user, roles, orgs = self._prepare_user_page(uid)
 
-        is_auth = _is_authenticated(REQUEST)
         # we can only connect to ldap with bind=True if we have an
         # authenticated user
         agent = self._get_ldap_agent(bind=is_auth)
