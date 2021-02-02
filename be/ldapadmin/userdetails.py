@@ -127,16 +127,26 @@ class UserDetails(SimpleItem):
         user['email'] = split_to_list(user['email'])
         user['jpegPhoto'] = agent.get_profile_picture(uid)
         user['certificate'] = agent.get_certificate(uid)
-        if user['orgs']:
-            for org in user['orgs']:
-                org_info = agent.org_info(org)
-                org_id = org_info.get('id')
-                if 'INVALID' in org_id or 'INEXISTENT' in org_id:
-                    orgs.append((org_id, ''))
-                else:
-                    name = org_info['name'].strip() or org_id.title().replace(
-                        '_', ' ')
-                    orgs.append((org_id, name))
+        # user['organisation'] is a CSV string with what the user has in the
+        # `o` property, while user['orgs'] is a list of orgasations that have
+        # current user as member. Both shuld in theory be the same, but
+        # some users still have older orgs, from the free text field period.
+        user_orgs = user['organisation']
+        if user_orgs:
+            user_orgs = split_to_list(user_orgs)
+        else:
+            user_orgs = []
+        orgs_with_user = user['orgs']
+
+        for org in set(user_orgs).union(set(orgs_with_user)):
+            org_info = agent.org_info(org)
+            org_id = org_info.get('id')
+            if 'INVALID' in org_id or 'INEXISTENT' in org_id:
+                orgs.append((org, ''))
+            else:
+                name = org_info['name'].strip() or org_id.title().replace(
+                    '_', ' ')
+                orgs.append((org_id, name))
         pwdChangedTime = user['pwdChangedTime']
         if pwdChangedTime:
             pwdChangedTime = datetime.strptime(pwdChangedTime, '%Y%m%d%H%M%SZ')

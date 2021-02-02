@@ -1450,28 +1450,29 @@ class UsersDB(object):
         assert self._bound, "call `perform_bind` before `remove_from_org`"
         log.info("Removing users %r from organisation %r",
                  user_id_list, org_id)
-
-        # record this change in the user's log
-        org_members = self.members_in_org(org_id)
         users = [(user_id, self._user_dn(user_id)) for user_id in user_id_list]
-        org_dn = self._org_dn(org_id)
+        org_info = self.org_info(org_id)
+        if not ('INVALID' in org_info['id'] or 'INEXISTENT' in org_info['id']):
+            # record this change in the user's log
+            org_members = self.members_in_org(org_id)
+            org_dn = self._org_dn(org_id)
 
-        user_dn_list = [user_dn for (user_id, user_dn) in users if
-                        user_id in org_members]
-        if user_dn_list:
-            changes = ((ldap.MOD_DELETE, 'uniqueMember', user_dn_list), )
+            user_dn_list = [user_dn for (user_id, user_dn) in users if
+                            user_id in org_members]
+            if user_dn_list:
+                changes = ((ldap.MOD_DELETE, 'uniqueMember', user_dn_list), )
 
-            # Check if any member remain, add placeholder value in
-            # case there will be None
-            if not (set(org_members) - set(user_id_list)):
-                changes = ((ldap.MOD_ADD, 'uniqueMember', ['']),) + changes
+                # Check if any member remain, add placeholder value in
+                # case there will be None
+                if not (set(org_members) - set(user_id_list)):
+                    changes = ((ldap.MOD_ADD, 'uniqueMember', ['']),) + changes
 
-            try:
-                result = self.conn.modify_s(org_dn, changes)
-                assert result[:2] == (ldap.RES_MODIFY, [])
-            except ldap.NO_SUCH_ATTRIBUTE as e:
-                if 'no such value' not in e[0]['info']:
-                    raise
+                try:
+                    result = self.conn.modify_s(org_dn, changes)
+                    assert result[:2] == (ldap.RES_MODIFY, [])
+                except ldap.NO_SUCH_ATTRIBUTE as e:
+                    if 'no such value' not in e[0]['info']:
+                        raise
 
         for user_id, user_dn in users:
             # also remove the org from the user's `o` property
