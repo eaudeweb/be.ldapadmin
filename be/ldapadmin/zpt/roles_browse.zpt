@@ -84,7 +84,7 @@
                     <td>Role name</td>
                     <tal:cond tal:condition="options/can_edit_members">
                         <td>Owners</td>
-                        <td>Permitted senders</td>
+                        <!--<td>Permitted senders</td>-->
                     </tal:cond>
                 </tr>
             </thead>
@@ -109,10 +109,10 @@
                                 </div>
                             </tal:rep>
                         </td>
-                        <td>
+                        <!--<td>
                             <div tal:repeat="sender python:role_infos[sub_role_id]['permittedSender']" 
                                 tal:content="sender" />
-                        </td>
+                        </td>-->
                     </tal:cond>
                 </tr>
             </tbody>
