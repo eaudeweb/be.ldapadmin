@@ -103,7 +103,8 @@
                     <tal:cond tal:condition="options/can_edit_members">
                         <td>
                             <tal:rep tal:repeat="owner python:role_infos[sub_role_id]['owner']" >
-                                <div tal:define="info python: options['get_user_info'](owner)" tal:on-error="string: ${owner} (${error/type})">
+                                <div tal:define="info python: options['get_user_info'](owner)"
+                                    tal:on-error="string: ${owner} (${error/type})">
                                   <a tal:attributes="href string:/user?uid=${info/id}" target="_blank"
                                         tal:content="info/full_name" /> (<span tal:replace="info/id" />)
                                 </div>

@@ -187,9 +187,10 @@ class BaseOrganisationDetails(object):
         for entry in self.entry['data']:
             org = entry.get('organisation')
             if org:
-                name = self.context._get_ldap_agent().org_info(
-                    org.strip())['name']
-                if not name:
+                org_info = self.context._get_ldap_agent().org_info(org.strip())
+                name = org_info['name']
+                if not name and (
+                        'INEXISTENT' not in org_info['id']):
                     name = org.title().replace('_', ' ')
                 out.append({'id': org, 'name': name})
 
