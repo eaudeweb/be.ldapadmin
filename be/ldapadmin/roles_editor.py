@@ -46,7 +46,7 @@ except ImportError:
 cfg = getConfiguration()
 cfg.environment.update(os.environ)
 ROLES_DOMAIN = getattr(cfg, 'environment', {}).get(
-    'ROLES_DOMAIN', 'roles.envcoord.health.fgov.be')
+    'ROLES_DOMAIN', 'envcoord.health.fgov.be')
 
 log = logging.getLogger('roles_editor')
 
