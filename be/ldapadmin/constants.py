@@ -29,7 +29,9 @@ LDAP_PROTOCOL = getattr(cfg, 'environment', {}).get(
 USERS_SPECIFIC = getattr(cfg, 'environment', {}).get(
     'USERS_SPECIFIC', os.environ.get('USERS_SPECIFIC', 'IRCusers'))
 ORGS_SPECIFIC = getattr(cfg, 'environment', {}).get(
-    'ORGS_SPECIFIC', os.environ.get('ORGS_SPECIFIC', 'IRCnodes'))
+    'ORGS_SPECIFIC', os.environ.get('ORGS_SPECIFIC', 'IRCorganisations'))
+SUPPORTS_MAILING = getattr(cfg, 'environment', {}).get(
+    'SUPPORTS_MAILING', os.environ.get('SUPPORTS_MAILING', True))
 
 USER_INFO_KEYS = [
     'status', 'last_name', 'uid', 'full_name', 'id',

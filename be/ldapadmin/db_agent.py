@@ -90,16 +90,16 @@ OPERATIONAL_SCHEMA = {
 LDAP_ORG_SCHEMA = {
     'name': 'o',
     # 'name_native': 'physicalDeliveryOfficeName',
-    # 'phone': 'telephoneNumber',
-    # 'fax': 'facsimileTelephoneNumber',
+    'phone': 'telephoneNumber',
+    'fax': 'facsimileTelephoneNumber',
     'url': 'labeledURI',
     # 'postal_address': 'postalAddress',
-    # 'street': 'street',
-    # 'po_box': 'postOfficeBox',
-    # 'postal_code': 'postalCode',
-    # 'country': 'c',
-    # 'locality': 'l',
-    # 'email': 'mail',
+    'street': 'street',
+    'po_box': 'postOfficeBox',
+    'postal_code': 'postalCode',
+    'country': 'c',
+    'locality': 'l',
+    'email': 'mail',
 }
 
 DISABLE_USER_SCHEMA = {
@@ -208,7 +208,7 @@ class UsersDB(object):
             'ou=Users,ou=DATA,ou=america,o=IRCusers,dc=CIRCA,dc=local')
         self._org_dn_suffix = config.get(
             'orgs_dn',
-            'ou=environment,ou=america,o=IRCnodes,dc=CIRCA,dc=local')
+            'ou=IRCorganisations,dc=CIRCA,dc=local')
         self._role_dn_suffix = config.get(
             'roles_dn', 'ou=DATA,ou=america,o=IRCroles,dc=CIRCA,dc=local')
         self._bound = False
@@ -658,7 +658,7 @@ class UsersDB(object):
         """
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=interestgroup)(pendingUniqueMember=%s))',
+            '(&(objectClass=organisation)(pendingUniqueMember=%s))',
             (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
@@ -962,7 +962,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def user_organisations(self, user_id):
         """ return organisations the user belongs to """
-        filter_tmpl = '(&(objectClass=interestgroup)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=organisation)(uniqueMember=%s))'
         user_dn = self._user_dn(user_id)
         filterstr = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result = self.conn.search_s(self._org_dn(None), ldap.SCOPE_SUBTREE,
@@ -1297,7 +1297,7 @@ class UsersDB(object):
             ('cn', [org_id]),
             ('objectClass', [
                 'top', 'groupOfUniqueNames',
-                'interestgroup', 'labeledURIObject'
+                'organisation', 'labeledURIObject'
             ]
             ),
             ('uniqueMember', ['']),
@@ -1314,8 +1314,7 @@ class UsersDB(object):
 
         assert result[:2] == (ldap.RES_ADD, [])
 
-        # TODO re-enable org changelog
-        # self.add_change_record(org_dn, CREATED_ORG, {})
+        self.add_change_record(org_dn, CREATED_ORG, {})
 
     @log_ldap_exceptions
     def set_org_info(self, org_id, new_info):
@@ -1330,8 +1329,7 @@ class UsersDB(object):
         result = self.conn.modify_s(org_dn, changes)
         assert result[:2] == (ldap.RES_MODIFY, [])
 
-        # TODO re-enable org changelog
-        # self.add_change_record(org_dn, EDITED_ORG, {})
+        self.add_change_record(org_dn, EDITED_ORG, {})
 
     @log_ldap_exceptions
     def members_in_org(self, org_id):
@@ -1362,9 +1360,8 @@ class UsersDB(object):
         for (user_id, user_dn) in users:
             self.add_change_record(user_dn, ADD_PENDING_TO_ORG,
                                    {'organisation': org_id})
-            # TODO re-enable org changelog
-            # self.add_change_record(org_dn, ADDED_PENDING_MEMBER_TO_ORG,
-            #                       {'member': user_id})
+            self.add_change_record(org_dn, ADDED_PENDING_MEMBER_TO_ORG,
+                                   {'member': user_id})
 
         user_dn_list = [user_dn for (user_id, user_dn) in users]
         changes = ((ldap.MOD_ADD, 'pendingUniqueMember', user_dn_list), )
@@ -1385,9 +1382,8 @@ class UsersDB(object):
             self.add_change_record(user_dn, REMOVED_PENDING_FROM_ORG, {
                 'organisation': org_id,
             })
-            # TODO re-enable org changelog
-            # self.add_change_record(org_dn, REMOVED_PENDING_MEMBER_FROM_ORG,
-            #                       {'member': user_id})
+            self.add_change_record(org_dn, REMOVED_PENDING_MEMBER_FROM_ORG,
+                                   {'member': user_id})
 
         user_dn_list = [user_dn for (user_id, user_dn) in users]
         changes = ((ldap.MOD_DELETE, 'pendingUniqueMember', user_dn_list), )
@@ -1430,9 +1426,9 @@ class UsersDB(object):
             assert result[:2] == (ldap.RES_MODIFY, [])
             self.add_change_record(user_dn, ADD_TO_ORG,
                                    {'organisation': org_id})
-            # TODO re-enable org changelog
-            # self.add_change_record(org_dn, ADDED_MEMBER_TO_ORG,
-            #                       {'member': user_id})
+            org_dn = self._org_dn(org_id)
+            self.add_change_record(org_dn, ADDED_MEMBER_TO_ORG,
+                                   {'member': user_id})
 
         org_changes = (
             (ldap.MOD_ADD, 'uniqueMember', [dn for uid, dn in users]),
@@ -1483,9 +1479,8 @@ class UsersDB(object):
             self.add_change_record(user_dn, REMOVED_FROM_ORG, {
                 'organisation': org_id,
             })
-            # TODO re-enable org changelog
-            # self.add_change_record(org_dn, REMOVED_MEMBER_FROM_ORG,
-            #                       {'member': user_id})
+            self.add_change_record(org_dn, REMOVED_MEMBER_FROM_ORG,
+                                   {'member': user_id})
 
     @log_ldap_exceptions
     def rename_org(self, org_id, new_org_id):
@@ -1519,11 +1514,9 @@ class UsersDB(object):
             log.exception(msg)
             raise OrgRenameError(msg)
 
-        # TODO Circa doesn't support org changelog yet
-        # (the registeredAddress field is not yet in org schema)
-        # self.add_change_record(new_org_dn,
-        #                       RENAMED_ORGANISATION,
-        #                       {'old_name': org_id})
+        self.add_change_record(new_org_dn,
+                               RENAMED_ORGANISATION,
+                               {'old_name': org_id})
 
     @log_ldap_exceptions
     def delete_org(self, org_id):
@@ -1822,7 +1815,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def search_org(self, name):
         query = name.lower().encode(self._encoding)
-        pattern = '(&(objectClass=interestgroup)(|(cn=*%s*)(o=*%s*)))'
+        pattern = '(&(objectClass=organisation)(|(cn=*%s*)(o=*%s*)))'
         query_filter = ldap.filter.filter_format(pattern, (query, query))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
@@ -2311,7 +2304,7 @@ class UsersDB(object):
     def _search_user_in_orgs(self, user_id):
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=interestgroup)(uniqueMember=%s))', (user_dn,))
+            '(&(objectClass=organisation)(uniqueMember=%s))', (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query_filter, attrlist=())
@@ -2320,7 +2313,7 @@ class UsersDB(object):
     def orgs_for_user(self, user_id):
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=interestgroup)(uniqueMember=%s))', (user_dn,))
+            '(&(objectClass=organisation)(uniqueMember=%s))', (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query_filter, attrlist=('o',))
@@ -2330,7 +2323,7 @@ class UsersDB(object):
     def all_organisations(self):
         result = self.conn.search_s(
             self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
-            filterstr='(objectClass=interestgroup)',
+            filterstr='(objectClass=organizationGroup)',
             attrlist=('o', 'c', 'physicalDeliveryOfficeName'))
 
         return dict((self._org_id(dn),

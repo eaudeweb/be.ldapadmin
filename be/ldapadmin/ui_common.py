@@ -7,7 +7,7 @@ from Products.PageTemplates.PageTemplateFile import PageTemplateFile as \
     Z2Template
 from persistent.list import PersistentList
 from persistent.mapping import PersistentMapping
-from be.ldapadmin.constants import NETWORK_NAME
+from be.ldapadmin.constants import NETWORK_NAME, SUPPORTS_MAILING
 from be.ldapadmin.countries import get_country
 from be.ldapadmin.logic_common import logged_in_user, _is_authenticated
 from be.ldapadmin.logic_common import load_template
@@ -211,7 +211,7 @@ class CommonTemplateLogic(object):
     @property
     def supports_mailing(self):
         """ bool, whether supports role mailing lists """
-        return NETWORK_NAME == 'Eionet'
+        return SUPPORTS_MAILING
 
     def can_edit_user(self, user_id):
         return user_id == logged_in_user(self.context.REQUEST)

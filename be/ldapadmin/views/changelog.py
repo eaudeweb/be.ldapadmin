@@ -33,7 +33,11 @@ class BaseActionDetails(BrowserView):
         if entry['author'] == 'unknown user':
             return entry['author']
 
-        user_info = self.context._get_ldap_agent().user_info(entry['author'])
+        try:
+            user_info = self.context._get_ldap_agent().user_info(
+                entry['author'])
+        except AttributeError:
+            user_info = self.base._get_ldap_agent().user_info(entry['author'])
         return u"%s (%s)" % (user_info['full_name'], entry['author'])
 
     def merge(self, roles):

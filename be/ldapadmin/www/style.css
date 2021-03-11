@@ -818,6 +818,10 @@ div#shortcut-queries{
 #senders_tokens span.info{
 	/*font-style: italic;*/
 }
+#senders_tokens li span.label{
+    position: absolute;
+    margin: 4px 0 0 10px;
+}
 #senders_tokens textarea{
 	font-family: arial, sans-serif;
 	background-color: #FFFFFF;
@@ -830,6 +834,10 @@ div#shortcut-queries{
 }
 #senders_tokens textarea:focus{
 	background-color: #FFFAD6;
+}
+
+#senders_tokens {
+    list-style: none !important;
 }
 
 ul.organisations {

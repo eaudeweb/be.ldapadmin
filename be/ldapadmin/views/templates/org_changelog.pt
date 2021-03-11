@@ -20,7 +20,7 @@
           <td>
             <a href="" 
               tal:content="python: view.author(entry)" 
-              tal:attributes="href string:/directory/users?uid=${entry/author}">Author</a>
+              tal:attributes="href string:/user?uid=${entry/author}">Author</a>
           </td>
           <td tal:content="structure python: view.details(entry)" ></td>
         </tal:def>

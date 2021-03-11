@@ -53,7 +53,7 @@ def get_objects_by_ldap_dump(specific):
 
 def get_org_by_ldap_dump(org_id):
     dn_prefix = 'cn='
-    dn_suffix = (',ou=environment,ou=america,o=IRCnodes,dc=CIRCA,'
+    dn_suffix = (',ou=IRCorganisations,dc=CIRCA,'
                  'dc=local')
     org_dn = dn_prefix + org_id.strip() + dn_suffix
     orgs = get_objects_by_ldap_dump(ORGS_SPECIFIC)

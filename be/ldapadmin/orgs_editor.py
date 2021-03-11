@@ -904,9 +904,8 @@ def validate_org_info(org_id, org_info, create_mode=False):
     if postal_code and postal_code_re.match(postal_code) is None:
         errors['postal_code'] = [VALIDATION_ERRORS['postal_code']]
 
-    # TODO Re-enable Country?
-    # country = org_info.get('country')
-    # if country and not country.strip():
-    #     errors['country'] = [VALIDATION_ERRORS['country']]
+    country = org_info.get('country')
+    if country and not country.strip():
+        errors['country'] = [VALIDATION_ERRORS['country']]
 
     return errors
