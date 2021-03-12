@@ -153,7 +153,9 @@
                class="middle-image image12" alt="" title="Delete role" />
           Delete role <span tal:content="role_id" />
         </a>
-        <ul id="manage-role" class="button">
+        <ul tal:define="role_param python:role_id or '';
+                        editable_role python:role_param and can_edit_members"
+            id="manage-role" class="button" tal:condition="editable_role">
           <li>
             <a href="#" class="button">
               <img src="/++resource++be.ldapadmin-www/users.png"

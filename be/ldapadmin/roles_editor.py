@@ -17,6 +17,7 @@ from Products.Five.browser import BrowserView
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 from App.class_init import InitializeClass
 from App.config import getConfiguration
+from AccessControl import getSecurityManager
 from AccessControl.Permissions import view, view_management_screens
 from AccessControl import ClassSecurityInfo, Unauthorized
 from lxml.builder import E
@@ -359,12 +360,27 @@ class RolesEditor(Folder):
             uid = agent._user_id(user_dn)
             return agent.user_info(uid)
 
+        role_infos = agent.role_infos_in_role(role_id)
+        # restrict role view to the roles the user is member of if
+        # not a manager
+        if not self.checkPermissionViewManagementScreens():
+            user_roles = agent.list_member_roles(
+                'user', self.REQUEST.AUTHENTICATED_USER.getId())
+            if not user_roles:
+                raise Unauthorized
+            elif role_id and role_id not in user_roles:
+                raise Unauthorized
+            else:
+                roles = list(role_infos.keys())
+                for role in roles:
+                    if role not in user_roles:
+                        del(role_infos[role])
         options = {
             'roles_domain': ROLES_DOMAIN,
             'role_id': role_id,
             'role_name': get_role_name(agent, role_id),
             'role_info': role_info,
-            'role_infos': agent.role_infos_in_role(role_id),
+            'role_infos': role_infos,
             'role_members': role_members(agent, role_id),
             'role_owners': role_owners,
             'permitted_persons': persons,
@@ -1300,6 +1316,10 @@ class RolesEditor(Folder):
         crumbs_html = self.aq_parent.breadcrumbtrail(self.REQUEST)
         extra_crumbs = getattr(self.REQUEST, '_roles_editor_crumbs', [])
         return extend_crumbs(crumbs_html, self.absolute_url(), extra_crumbs)
+
+    def checkPermissionViewManagementScreens(self):
+        return getSecurityManager().checkPermission(view_management_screens,
+                                                    self)
 
 
 InitializeClass(RolesEditor)
