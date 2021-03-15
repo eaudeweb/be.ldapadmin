@@ -39,9 +39,6 @@ from be.ldapadmin.schema import user_info_schema
 cfg = getConfiguration()
 cfg.environment.update(os.environ)
 
-ADDR_FROM = getattr(cfg, 'environment', {}).get(
-    'ADDR_FROM', 'no-reply@envcoord.health.fgov.be')
-
 log = logging.getLogger('orgs_editor')
 
 ldap_edit_orgs = 'LDAP edit organisations'

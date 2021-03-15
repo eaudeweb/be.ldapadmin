@@ -42,7 +42,7 @@ from be.ldapadmin.import_export import set_response_attachment
 from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import SessionMessages, TemplateRenderer
 from be.ldapadmin.ui_common import extend_crumbs, TemplateRendererNoWrap
-from be.ldapadmin.constants import ADDR_FROM, HELPDESK_EMAIL
+from be.ldapadmin.constants import MAIL_ADDRESS_FROM, HELPDESK_EMAIL
 from be.ldapadmin.ldapdump import get_objects_by_ldap_dump
 
 try:
@@ -339,7 +339,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
     def _send_new_user_email(self, user_id, user_info):
         """ Sends announcement email to helpdesk """
 
-        addr_from = ADDR_FROM
+        addr_from = MAIL_ADDRESS_FROM
         addr_to = HELPDESK_EMAIL
 
         message = _create_plain_message('')
@@ -754,7 +754,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         log.info("%s ENABLED USER %s", logged_in_user(REQUEST), id)
 
         user_info = agent.user_info(id)
-        addr_from = ADDR_FROM
+        addr_from = MAIL_ADDRESS_FROM
         addr_to = user_info['email']
 
         email_password_body = self._render_template.render(
@@ -810,7 +810,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             agent.set_user_password(id, None, password)
 
         user_info = agent.user_info(id)
-        addr_from = ADDR_FROM
+        addr_from = MAIL_ADDRESS_FROM
         addr_to = user_info['email']
         email_password_body = self.email_password(user_info['first_name'],
                                                   password, 'change')
@@ -942,7 +942,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
 
     def send_confirmation_email(self, user_info):
         """ Sends confirmation email """
-        addr_from = ADDR_FROM
+        addr_from = MAIL_ADDRESS_FROM
         addr_to = user_info['email']
         message = _create_plain_message('')
         message['From'] = addr_from

@@ -18,7 +18,7 @@ from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 from persistent.mapping import PersistentMapping
 from zExceptions import NotFound
 from ldap import CONSTRAINT_VIOLATION, NO_SUCH_OBJECT, SCOPE_BASE
-from be.ldapadmin.constants import NETWORK_NAME, ADDR_FROM
+from be.ldapadmin.constants import NETWORK_NAME, MAIL_ADDRESS_FROM
 from be.ldapadmin import ldap_config
 from be.ldapadmin.logic_common import _is_authenticated, logged_in_user
 from be.ldapadmin.logic_common import load_template, split_to_list
@@ -347,17 +347,17 @@ class UserDetails(SimpleItem):
             addr_to = user_info['email']
 
             message = MIMEText(email_password_body)
-            message['From'] = ADDR_FROM
+            message['From'] = MAIL_ADDRESS_FROM
             message['To'] = addr_to
             message['Subject'] = "%s Account - New password" % NETWORK_NAME
 
             try:
                 mailer = getUtility(IMailDelivery, name="Mail")
-                mailer.send(ADDR_FROM, split_to_list(addr_to),
+                mailer.send(MAIL_ADDRESS_FROM, split_to_list(addr_to),
                             message.as_string())
             except ComponentLookupError:
                 mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
-                mailer.send(ADDR_FROM, split_to_list(addr_to), message)
+                mailer.send(MAIL_ADDRESS_FROM, split_to_list(addr_to), message)
 
         except ValueError:
             _set_session_message(REQUEST, 'error', "Old password is wrong")

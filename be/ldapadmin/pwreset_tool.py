@@ -19,7 +19,7 @@ from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 from persistent.mapping import PersistentMapping
 from be.ldapadmin import ldap_config
 from be.ldapadmin import query
-from be.ldapadmin.constants import NETWORK_NAME, ADDR_FROM
+from be.ldapadmin.constants import NETWORK_NAME, MAIL_ADDRESS_FROM
 from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import SessionMessages
 from be.ldapadmin.ui_common import TemplateRenderer
@@ -133,7 +133,7 @@ class PasswordResetTool(SimpleItem):
         return token
 
     def _send_token_email(self, addr_to, token, user_info):
-        addr_from = ADDR_FROM
+        addr_from = MAIL_ADDRESS_FROM
         email_template = load_template('zpt/pwreset_token_email.zpt')
         expiration_time = datetime.utcnow() + timedelta(days=1)
         options = {

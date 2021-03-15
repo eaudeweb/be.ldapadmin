@@ -16,8 +16,8 @@ NETWORK_URL = getattr(cfg, 'environment', {}).get(
     'NETWORK_URL', 'https://envcoord.health.fgov.be')
 BASE_DOMAIN = getattr(cfg, 'environment', {}).get('BASE_DOMAIN',
                                                   'envcoord.health.fgov.be')
-ADDR_FROM = getattr(cfg, 'environment', {}).get(
-    'ADDR_FROM', 'no-reply@envcoord.health.fgov.be')
+MAIL_ADDRESS_FROM = getattr(cfg, 'environment', {}).get(
+    'MAIL_ADDRESS_FROM', 'no-reply@envcoord.health.fgov.be')
 HELPDESK_EMAIL = getattr(cfg, 'environment', {}).get(
     'HELPDESK_EMAIL', 'helpdesk@envcoord.health.fgov.be')
 LDAP_DISK_STORAGE = getattr(cfg, 'environment', {}).get(
