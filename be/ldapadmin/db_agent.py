@@ -1540,7 +1540,7 @@ class UsersDB(object):
         attrs = [
             ('cn', [role_id]),
             ('objectClass',
-             ['top', 'role', 'organizationalUnit']),
+             ['top', 'role', 'organizationalUnit', 'mailListGroup']),
             ('ou', [role_id.split('-')[-1]]),
             ('uniqueMember', ['']),
         ]
