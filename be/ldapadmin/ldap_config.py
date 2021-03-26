@@ -52,7 +52,7 @@ def _get_ldap_agent(context, bind=False, secondary=False):
     try:
         agent._author = logged_in_user(context.REQUEST)
     except AttributeError:
-        agent._author = "System user"
+        agent._author = "system_user"
 
     return agent
 
