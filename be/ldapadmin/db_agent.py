@@ -1296,8 +1296,8 @@ class UsersDB(object):
         attrs = [
             ('cn', [org_id]),
             ('objectClass', [
-                'top', 'groupOfUniqueNames',
-                'organisation', 'labeledURIObject'
+                'top', 'groupOfUniqueNames', 'hierarchicalGroup',
+                'organizationGroup', 'labeledURIObject'
             ]
             ),
             ('uniqueMember', ['']),
