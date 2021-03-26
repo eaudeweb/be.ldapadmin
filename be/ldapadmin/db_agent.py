@@ -1448,10 +1448,10 @@ class UsersDB(object):
                  user_id_list, org_id)
         users = [(user_id, self._user_dn(user_id)) for user_id in user_id_list]
         org_info = self.org_info(org_id)
+        org_dn = self._org_dn(org_id)
         if not ('INVALID' in org_info['id'] or 'INEXISTENT' in org_info['id']):
             # record this change in the user's log
             org_members = self.members_in_org(org_id)
-            org_dn = self._org_dn(org_id)
 
             user_dn_list = [user_dn for (user_id, user_dn) in users if
                             user_id in org_members]
