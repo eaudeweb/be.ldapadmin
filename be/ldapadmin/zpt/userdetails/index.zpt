@@ -102,7 +102,10 @@
             <div class="tip-msg" tal:condition="not: is_authenticated">
                 You are displaying this <span tal:replace="common/network_name" /> User details as anonymous.
                 <br /><br />
-                For more information on account please <a href="/loggedin" title="Login to your account">login</a> first, as access to more detailed information, in addition to name, title and ID, is restricted to authenticated users.
+                For more information on account please <a
+                  tal:attributes="href
+                  string:/login/login_form?came_from=${common/base_url}?uid=${user_id}"
+                  title="Login to your account">login</a> first, as access to more detailed information, in addition to name, title and ID, is restricted to authenticated users.
             </div>
 
             <div class="figure figure-right" style="clear: both"
