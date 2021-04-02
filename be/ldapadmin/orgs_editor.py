@@ -225,7 +225,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
             org_sheet.write(i + 2, 0, row['id'], style_normal)
             org_sheet.write(i + 2, 1, row['name'], style_normal)
             org_sheet.write(i + 2, 2, row['locality'], style_normal)
-            org_sheet.write(i + 2, 3, row['postal_address'], style_normal)
+            org_sheet.write(i + 2, 3, row['street'], style_normal)
             org_sheet.write(i + 2, 4, row['fax'], style_normal)
             org_sheet.write(i + 2, 5, row['email'], style_normal)
             members = agent.members_in_org(row['id'])   # TODO: optimize
