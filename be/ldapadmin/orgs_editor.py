@@ -852,7 +852,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
 InitializeClass(OrganisationsEditor)
 
 
-id_re = re.compile(r'^[a-z]{2}_[a-z]+$')
+id_re = re.compile(r'^[a-z]{2}_[a-z_]+$')
 phone_re = re.compile(r'^\+[\d ]+$')
 postal_code_re = re.compile(r'^[a-zA-Z]{2}[a-zA-Z0-9\- ]+$')
 
