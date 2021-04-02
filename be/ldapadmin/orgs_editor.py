@@ -173,7 +173,6 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         orgs_by_id = agent.all_organisations()
 
         countries = dict(get_country_options())
-        country = 'all'
 
         orgs = []
         for org_id, info in orgs_by_id.iteritems():
@@ -288,8 +287,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         RESPONSE.setHeader('Pragma', 'public')
         RESPONSE.setHeader('Cache-Control', 'max-age=0')
         RESPONSE.addHeader("content-disposition",
-                           "attachment; filename=%s-organisations.xls" %
-                           country)
+                           "attachment; filename=organisations.xls")
 
         return out
 
