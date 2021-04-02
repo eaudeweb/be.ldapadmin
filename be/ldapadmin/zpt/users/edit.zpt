@@ -9,6 +9,10 @@
   <h2>Operations</h2>
   <ul tal:condition="not:disabled_user">
     <li>
+      <a tal:attributes="href string:/user?uid=${options/user/id}"
+         >View user details</a>
+    </li>
+    <li>
       <a tal:condition="not:options/my_account" href="/password-reset"
          >Reset password</a>
       <a tal:condition="options/my_account" tal:attributes="href string:/user/change_password_html"
