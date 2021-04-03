@@ -2172,9 +2172,12 @@ class UsersDB(object):
         log.info("Removing uniqueMember %r from %r", member_dn, role_dn)
 
         def _remove():
-            self.conn.modify_s(role_dn, (
-                (ldap.MOD_DELETE, 'uniqueMember', [member_dn]),
-            ))
+            try:
+                self.conn.modify_s(role_dn, (
+                    (ldap.MOD_DELETE, 'uniqueMember', [member_dn]),
+                ))
+            except ldap.NO_SUCH_ATTRIBUTE:
+                pass  # most likely caused by inexisting organisations
             try:
                 self.conn.modify_s(role_dn, (
                     (ldap.MOD_DELETE, 'leaderMember', [member_dn]),
