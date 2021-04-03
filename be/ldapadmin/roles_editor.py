@@ -709,9 +709,9 @@ class RolesEditor(Folder):
         if not slug:
             raise RoleCreationError(["Role name is required."])
         for ch in slug:
-            if ch not in (ascii_lowercase + digits):
-                msg = ("Invalid Role ID, it must contain only lowercase "
-                       "latin letters and digits.")
+            if ch not in (ascii_lowercase + digits + '_'):
+                msg = ("Invalid Role ID, it may contain only lowercase latin "
+                       "letters, digits and underscores.")
                 if ch == '-':
                     msg += (" Only input the subrole extension, not the "
                             "complete id that contains dashes ('-').")
