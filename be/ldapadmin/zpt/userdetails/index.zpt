@@ -228,7 +228,10 @@
                             <tal:block repeat="role options/roles">
                                 <tr tal:condition="python: role[0] in options['filtered_roles']"
                                     tal:attributes="class python:('even', 'odd')[int(path('repeat/role/odd'))]">
-                                    <td tal:content="python: role[0]" nowrap="nowrap" />
+                                    <td>
+                                      <a tal:attributes="href python: '/roles?role_id=' + role[0]"
+                                        tal:content="python: role[0]" nowrap="nowrap" />
+                                    </td>
                                     <td tal:content="python: role[1]" />
                                 </tr>
                             </tal:block>
@@ -274,13 +277,19 @@
                             <tal:block repeat="role options/roles">
                                 <tr tal:condition="python: role[0] in options['filtered_roles']"
                                     tal:attributes="class python:('even', 'odd')[int(path('repeat/role/odd'))]">
-                                    <td tal:content="python: role[0]" nowrap="nowrap" />
+                                    <td>
+                                      <a tal:attributes="href python: '/roles?role_id=' + role[0]"
+                                        tal:content="python: role[0]" nowrap="nowrap" />
+                                    </td>
                                     <td tal:content="python: role[1]" />
                                 </tr>
                             </tal:block>
                             <tal:block repeat="role options/removed_roles">
                                 <tr tal:attributes="class python:('even', 'odd')[int(path('repeat/role/odd'))]">
-                                    <td tal:content="python: role[0]" nowrap="nowrap" />
+                                    <td>
+                                      <a tal:attributes="href python: '/roles?role_id=' + role[0]"
+                                        tal:content="python: role[0]" nowrap="nowrap" />
+                                    </td>
                                     <td tal:content="python: role[1]" />
                                 </tr>
                             </tal:block>
