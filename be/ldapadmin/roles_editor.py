@@ -1034,8 +1034,12 @@ class RolesEditor(Folder):
                    usr['phone'], usr['fax'], usr['postal_address'],
                    usr['organisation']]
             if subroles:
-                row.insert(0, '\n'.join(usr['roles']))
-            rows.append([value.encode('utf-8') for value in row])
+                for role in usr['roles']:
+                    rows.append([value.encode('utf-8') for value in [role] + row])
+            else:
+                rows.append([value.encode('utf-8') for value in row])
+
+        rows.sort(key=lambda x: x[0])  # sort by name
 
         return generate_excel(header, rows)
 
