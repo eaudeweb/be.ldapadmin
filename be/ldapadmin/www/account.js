@@ -74,20 +74,23 @@ function selectAll(name, additional_class){
 (function($){
 
 	var set_role_name = function (ev){
-		var role_name = $("input[name=role_name]", $(this).parent()).val();
-		var role_id = $("input[name=role_id]", $(this).parent()).val();
+		var fieldsContainer = $("#role-name-edit");
+		var role_name = $("input[name=role_name]", fieldsContainer).val();
+		var role_description = $("textarea[name=role_description]", fieldsContainer).val();
+		var role_id = $("input[name=role_id]", fieldsContainer).val();
 		if(!role_name){
 			alert("You must provide a name for the role");
 		}
 		else
 			$.post('edit_role_name',
-				{role_id: role_id, 'role_name:utf8:ustring': role_name},
+				{role_id: role_id, 'role_name:utf8:ustring': role_name, 'role_description:utf8:ustring': role_description},
 				function(data){
 					console.log(data);
 					if(data.error)
 						alert(data.error);
 					else{
 						$('div#role-name h1').text(role_name);
+						$('#role-description').text(role_description);
 						$('div#role-name-edit').hide(200, function(){
 							$('div#role-name').show();
 						});
@@ -102,10 +105,15 @@ function selectAll(name, additional_class){
 				$('div#role-name-edit').show();
 			});
 		});
-		$("#role-name-edit").keypress(function(ev){
+		$("#role-name-edit input[name=role_name]").keypress(function(ev){
 			if (ev.keyCode == 13)
 				set_role_name(ev);
 		});
 		$("#role-name-edit input[type=submit]").click(set_role_name);
+		$("#role-name-edit-cancel").click(function() {
+			$('div#role-name-edit').hide(200, function(){
+				$('div#role-name').show();
+			});
+		});
 	});
 })(jQuery);

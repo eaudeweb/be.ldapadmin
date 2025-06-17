@@ -779,10 +779,19 @@ input.shortcut_country{
 
 div#role-name{
 	float: left;
+	margin-bottom: 0.67em;
+}
+div#role-name h1{
+	margin-bottom: 0;
+}
+div#role-description{
+	clear: both;
+	white-space-collapse: preserve;
 }
 div#role-name-edit{
 	display: none;
 	float: left;
+	padding-bottom: 1em;
 }
 img#edit-role-description-arrow{
 	margin: 6px 0 0 6px;
@@ -790,6 +799,10 @@ img#edit-role-description-arrow{
 }
 div#role-name-edit input.role_name{
 	width: 500px;
+}
+div#role-name-edit textarea.role_description{
+	margin-top: 0.5em;
+	width: 100%;
 }
 
 div#shortcut-queries{

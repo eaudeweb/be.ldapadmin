@@ -723,11 +723,13 @@ class UsersDB(object):
         """ return a role info for an object from a result
         """
         description = attr.get('description', [""])[0].decode(self._encoding)
+        postalAddress = attr.get('postalAddress', [""])[0].decode(self._encoding).replace('$', '\n')
         extended = attr.get('businessCategory', ['False'])[0]
         extended = True and extended.lower() == 'true' or False
 
         return {
-            'description': description,
+            'description': description,  # this is used as title
+            'postalAddress': postalAddress,  # this is used as description
             'owner': attr.get('owner', []),
             'permittedSender': attr.get('permittedSender', []),
             'permittedPerson': attr.get('permittedPerson', []),
@@ -1692,6 +1694,26 @@ class UsersDB(object):
         except ldap.NO_SUCH_ATTRIBUTE:
             self.conn.modify_s(role_dn, (
                 (ldap.MOD_ADD, 'description', [description_bytes]),
+            ))
+
+    @log_ldap_exceptions
+    def set_role_address(self, role_id, address):
+        """
+        Sets role postalAddress (or description) to `address`
+        `address` must be unicode or ascii bytes
+
+        """
+        assert self._bound, "call `perform_bind` before `set_role_address`"
+        log.info("Set info %r for role %r", address, role_id)
+        role_dn = self._role_dn(role_id)
+        address_bytes = address.encode(self._encoding)
+        try:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_REPLACE, 'postalAddress', [address_bytes]),
+            ))
+        except ldap.NO_SUCH_ATTRIBUTE:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_ADD, 'postalAddress', [address_bytes]),
             ))
 
     @log_ldap_exceptions

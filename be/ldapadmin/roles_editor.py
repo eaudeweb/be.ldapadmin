@@ -1014,7 +1014,7 @@ class RolesEditor(Folder):
         header = ('Name', 'User ID', 'Email', 'Tel', 'Fax', 'Postal Address',
                   'Organisation')
         if subroles:
-            header = ('Subrole', ) + header
+            header = ('Subrole', 'Role description', ) + header
 
         agent = self._get_ldap_agent()
         try:
@@ -1027,6 +1027,9 @@ class RolesEditor(Folder):
         members = role_members(agent, role_id, subroles)
         keys = sorted(members['users'].keys())
 
+
+        roles_info = {}
+
         rows = []
         for u_id in keys:
             usr = members['users'][u_id]
@@ -1035,7 +1038,11 @@ class RolesEditor(Folder):
                    usr['organisation']]
             if subroles:
                 for role in usr['roles']:
-                    rows.append([value.encode('utf-8') for value in [role] + row])
+                    role_info = roles_info.get(role, None)
+                    if role_info is None:
+                        role_info = agent.role_info(role)
+                        roles_info[role] = role_info
+                    rows.append([value.encode('utf-8') for value in [role, role_info["postalAddress"]] + row])
             else:
                 rows.append([value.encode('utf-8') for value in row])
 
@@ -1292,15 +1299,19 @@ class RolesEditor(Folder):
                                role_id})
         if REQUEST.REQUEST_METHOD == 'POST':
             description = REQUEST.form.get('role_name')
+            address = REQUEST.form.get('role_description')
             agent = self._get_ldap_agent(bind=True)
             try:
                 with agent.new_action():
                     agent.set_role_description(role_id, description)
+                    agent.set_role_address(role_id, address)
             except Exception as e:
                 return json.dumps({'error': unicode(e)})
             else:
                 log.info("%s SET DESCRIPTION %r FOR ROLE %s",
                          logged_in_user(REQUEST), description, role_id)
+                log.info("%s SET ADDRESS %r FOR ROLE %s",
+                         logged_in_user(REQUEST), address, role_id)
                 return json.dumps({'error': False})
 
     security.declareProtected(view_management_screens, 'manage_add_query_html')
