@@ -1027,7 +1027,6 @@ class RolesEditor(Folder):
         members = role_members(agent, role_id, subroles)
         keys = sorted(members['users'].keys())
 
-
         roles_info = {}
 
         rows = []
@@ -1046,9 +1045,45 @@ class RolesEditor(Folder):
             else:
                 rows.append([value.encode('utf-8') for value in row])
 
-        rows.sort(key=lambda x: x[0])  # sort by name
+        def fiddle_workbook(wb):
+            style_center = xlwt.XFStyle()
+            align_center = xlwt.Alignment()
+            align_center.horz = xlwt.Alignment.HORZ_CENTER
+            align_center.vert = xlwt.Alignment.VERT_CENTER
+            style_center.alignment = align_center
 
-        return generate_excel(header, rows)
+            ws = wb.get_sheet(0)
+            # enable cell overwrite, otherwise merge will fail
+            ws._cell_overwrite_ok = True
+
+            current_slice_start = 0
+            current_slice_end = 0
+            len_rows = len(rows)
+            for i in range(0, len_rows):
+                current_role = rows[i][0]
+                current_description = rows[i][1]
+                next_role = rows[i+1][0] if i + 1 < len_rows else None
+                if next_role != current_role:
+                    current_slice_end = i
+
+                    # account for XLS header row (add offset)
+                    offset_slice_range_start = current_slice_start + 1
+                    offset_slice_range_end = current_slice_end + 1
+
+                    # merge first column (role)
+                    ws.write_merge(offset_slice_range_start, offset_slice_range_end, 0, 0, current_role, style_center)
+
+                    # merge second column (role description)
+                    ws.write_merge(offset_slice_range_start, offset_slice_range_end, 1, 1, current_description, style_center)
+
+                    # start next slice at next row
+                    current_slice_start = i + 1
+
+        if subroles:
+            rows.sort(key=lambda x: x[0])  # sort by name
+            return generate_excel(header, rows, fiddle_workbook)
+        else:
+            return generate_excel(header, rows)
 
     security.declareProtected(view, 'edit_owners')
 
