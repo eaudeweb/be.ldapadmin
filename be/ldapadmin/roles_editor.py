@@ -839,6 +839,42 @@ class RolesEditor(Folder):
         rel_url = '/?role_id=' + parent_role_id if parent_role_id else '/'
         REQUEST.RESPONSE.redirect(self.absolute_url() + rel_url)
 
+    def activate_role(self, REQUEST):
+        """ activate a role """
+        role_id = REQUEST.form['role_id']
+        if not self.can_delete_role(role_id, REQUEST.AUTHENTICATED_USER):
+            raise Unauthorized(("You are not allowed to activate role %s. "
+                                "Owners can only activate empty roles")
+                               % role_id)
+        logged_in = logged_in_user(REQUEST)
+        agent = self._get_ldap_agent(bind=True)
+        with agent.new_action():
+            agent.activate_role(role_id)
+        _set_session_message(REQUEST, 'info', "Activated role %s" % role_id)
+
+        log.info("%s ACTIVATED ROLE %s", logged_in, role_id)
+
+        rel_url = '/?role_id=' + role_id
+        REQUEST.RESPONSE.redirect(self.absolute_url() + rel_url)
+
+    def deactivate_role(self, REQUEST):
+        """ deactivate a role """
+        role_id = REQUEST.form['role_id']
+        if not self.can_delete_role(role_id, REQUEST.AUTHENTICATED_USER):
+            raise Unauthorized(("You are not allowed to deactivate role %s. "
+                                "Owners can only deactivate empty roles")
+                               % role_id)
+        logged_in = logged_in_user(REQUEST)
+        agent = self._get_ldap_agent(bind=True)
+        with agent.new_action():
+            agent.deactivate_role(role_id)
+        _set_session_message(REQUEST, 'info', "Deactivated role %s" % role_id)
+
+        log.info("%s DEACTIVATED ROLE %s", logged_in, role_id)
+
+        rel_url = '/?role_id=' + role_id
+        REQUEST.RESPONSE.redirect(self.absolute_url() + rel_url)
+
     security.declareProtected(view, 'add_member_html')
 
     def add_member_html(self, REQUEST):

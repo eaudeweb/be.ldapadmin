@@ -843,6 +843,16 @@ div#shortcut-queries{
 #delete-role, #delete-members{
 	/*float: right;*/
 }
+
+a#deactivate-role {
+	background-color: #bf5900;
+	margin: 0 1em;
+}
+a#activate-role {
+	background-color: #6f9839;
+	margin: 0 1em;
+}
+
 #senders_tokens span.info{
 	/*font-style: italic;*/
 }

@@ -1,6 +1,7 @@
 <tal:block define="page options/current_page;
     is_auth python: common.is_authenticated();
     role_id options/role_id | nothing;
+    is_deactivated options/is_deactivated | nothing;
     can_edit_members options/can_edit_members;
     can_edit_roles options/can_edit_roles;
     can_edit_extended_roles options/can_edit_extended_roles;
@@ -153,6 +154,19 @@
                class="middle-image image12" alt="" title="Delete role" />
           Delete role <span tal:content="role_id" />
         </a>
+
+        <a id="deactivate-role" class="button" tal:define="deactivate_url string:${common/base_url}/deactivate_role"
+           tal:condition="python:role_id and (not is_deactivated) and can_delete_role"
+           tal:attributes="href string:${deactivate_url}?role_id=${role_id}">
+          Deactivate role <span tal:content="role_id" />
+        </a>
+
+        <a id="activate-role" class="button" tal:define="activate_url string:${common/base_url}/activate_role"
+           tal:condition="python:role_id and is_deactivated and can_delete_role"
+           tal:attributes="href string:${activate_url}?role_id=${role_id}">
+          Activate role <span tal:content="role_id" />
+        </a>
+
         <ul tal:define="role_param python:role_id or '';
                         editable_role python:role_param and can_edit_members"
             id="manage-role" class="button" tal:condition="editable_role">

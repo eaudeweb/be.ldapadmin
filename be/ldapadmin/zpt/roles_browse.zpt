@@ -65,7 +65,7 @@
     #location-tabs .ui-accordion-content a:link { color: #2a6495; }
 </style>
 
-<tal:block content="structure python:common.buttons_bar('role', options['role_id'], len(options['role_members']['users']))"/>
+<tal:block content="structure python:common.buttons_bar('role', options['role_id'], len(options['role_members']['users']), options['role_info']['isDeactivated'])"/>
 
 <tal:block content="structure common/message_boxes"/>
 

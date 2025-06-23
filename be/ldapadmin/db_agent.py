@@ -1789,6 +1789,39 @@ class UsersDB(object):
         return self.conn.search_s(*args, **kwargs)
 
     @log_ldap_exceptions
+    def activate_role(self, role_id):
+        assert self._bound, "call `perform_bind` before `activate_role`"
+        log.info("Activate role %r", role_id)
+        role_dn = self._role_dn(role_id)
+        value_bytes = u"deactivated:false".encode(self._encoding)
+        try:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_REPLACE, 'l', [value_bytes]),
+            ))
+        except ldap.NO_SUCH_ATTRIBUTE:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_ADD, 'l', [value_bytes]),
+            ))
+
+    @log_ldap_exceptions
+    def deactivate_role(self, role_id):
+        assert self._bound, "call `perform_bind` before `deactivate_role`"
+        log.info("Deactivate role %r", role_id)
+        role_dn = self._role_dn(role_id)
+        value_bytes = u"deactivated:true".encode(self._encoding)
+        try:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_REPLACE, 'l', [value_bytes]),
+            ))
+        except ldap.NO_SUCH_ATTRIBUTE:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_ADD, 'l', [value_bytes]),
+            ))
+
+    def raw_ldap_search(self, *args, **kwargs):
+        return self.conn.search_s(*args, **kwargs)
+
+    @log_ldap_exceptions
     def search_user_by_email(self, email, no_disabled=False):
         disabled_filter = no_disabled and "(!(employeeType=*disabled*))" or ''
         email = split_to_list(email)
