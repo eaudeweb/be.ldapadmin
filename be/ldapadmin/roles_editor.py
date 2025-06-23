@@ -88,6 +88,16 @@ SESSION_MESSAGES = SESSION_PREFIX + '.messages'
 SESSION_FORM_DATA = SESSION_PREFIX + '.form_data'
 
 
+ROLES_STATUS = (
+    "Expected",
+    "In discussion",
+    "Pending",
+    "Comitology",
+    "Permanent group",
+    "Ad hoc group",
+)
+
+
 def _set_session_message(request, msg_type, msg):
     SessionMessages(request, SESSION_MESSAGES).add(msg_type, msg)
 
@@ -377,6 +387,7 @@ class RolesEditor(Folder):
                         del(role_infos[role])
         options = {
             'roles_domain': ROLES_DOMAIN,
+            'roles_status': ROLES_STATUS,
             'role_id': role_id,
             'role_name': get_role_name(agent, role_id),
             'role_info': role_info,
@@ -1335,10 +1346,12 @@ class RolesEditor(Folder):
         if REQUEST.REQUEST_METHOD == 'POST':
             description = REQUEST.form.get('role_name')
             address = REQUEST.form.get('role_description')
+            role_status = REQUEST.form.get('role_status')
             agent = self._get_ldap_agent(bind=True)
             try:
                 with agent.new_action():
                     agent.set_role_description(role_id, description)
+                    agent.set_role_status(role_id, role_status)
                     agent.set_role_address(role_id, address)
             except Exception as e:
                 return json.dumps({'error': unicode(e)})
@@ -1347,6 +1360,8 @@ class RolesEditor(Folder):
                          logged_in_user(REQUEST), description, role_id)
                 log.info("%s SET ADDRESS %r FOR ROLE %s",
                          logged_in_user(REQUEST), address, role_id)
+                log.info("%s SET POSTOFFICEBOX %r FOR ROLE %s",
+                         logged_in_user(REQUEST), role_status, role_id)
                 return json.dumps({'error': False})
 
     security.declareProtected(view_management_screens, 'manage_add_query_html')

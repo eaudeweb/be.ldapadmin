@@ -77,13 +77,19 @@ function selectAll(name, additional_class){
 		var fieldsContainer = $("#role-name-edit");
 		var role_name = $("input[name=role_name]", fieldsContainer).val();
 		var role_description = $("textarea[name=role_description]", fieldsContainer).val();
+		var role_status = $("select[name=role_status]", fieldsContainer).val();
 		var role_id = $("input[name=role_id]", fieldsContainer).val();
 		if(!role_name){
 			alert("You must provide a name for the role");
 		}
 		else
 			$.post('edit_role_name',
-				{role_id: role_id, 'role_name:utf8:ustring': role_name, 'role_description:utf8:ustring': role_description},
+				{
+					role_id: role_id,
+					'role_name:utf8:ustring': role_name,
+					'role_description:utf8:ustring': role_description,
+					'role_status:utf8:ustring': role_status,
+				},
 				function(data){
 					console.log(data);
 					if(data.error)

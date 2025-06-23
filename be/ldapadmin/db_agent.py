@@ -724,12 +724,14 @@ class UsersDB(object):
         """
         description = attr.get('description', [""])[0].decode(self._encoding)
         postalAddress = attr.get('postalAddress', [""])[0].decode(self._encoding).replace('$', '\n')
+        postOfficeBox = attr.get('postOfficeBox', [""])[0].decode(self._encoding)
         extended = attr.get('businessCategory', ['False'])[0]
         extended = True and extended.lower() == 'true' or False
 
         return {
             'description': description,  # this is used as title
             'postalAddress': postalAddress,  # this is used as description
+            'postOfficeBox': postOfficeBox,  # this is used as status
             'owner': attr.get('owner', []),
             'permittedSender': attr.get('permittedSender', []),
             'permittedPerson': attr.get('permittedPerson', []),
@@ -1694,6 +1696,26 @@ class UsersDB(object):
         except ldap.NO_SUCH_ATTRIBUTE:
             self.conn.modify_s(role_dn, (
                 (ldap.MOD_ADD, 'description', [description_bytes]),
+            ))
+
+    @log_ldap_exceptions
+    def set_role_status(self, role_id, role_status):
+        """
+        Sets role postOfficeBox (or name) to `role_status`
+        `role_status` must be unicode or ascii bytes
+
+        """
+        assert self._bound, "call `perform_bind` before `set_role_status`"
+        log.info("Set postOfficeBox %r for role %r", role_status, role_id)
+        role_dn = self._role_dn(role_id)
+        role_status_bytes = role_status.encode(self._encoding)
+        try:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_REPLACE, 'postOfficeBox', [role_status_bytes]),
+            ))
+        except ldap.NO_SUCH_ATTRIBUTE:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_ADD, 'postOfficeBox', [role_status_bytes]),
             ))
 
     @log_ldap_exceptions

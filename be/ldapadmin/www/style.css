@@ -784,6 +784,15 @@ div#role-name{
 div#role-name h1{
 	margin-bottom: 0;
 }
+div#role-status {
+	clear: both;
+	border-radius: 5px;
+	color: #fff;
+	background-color: #2a6495;
+	padding: 0.3em 0.5em;
+	display: inline-block;
+	margin: 0.5em;
+}
 div#role-description{
 	clear: both;
 	white-space-collapse: preserve;
@@ -801,8 +810,11 @@ div#role-name-edit input.role_name{
 	width: 500px;
 }
 div#role-name-edit textarea.role_description{
-	margin-top: 0.5em;
 	width: 100%;
+}
+
+div#role-name-edit .role-field {
+	margin: 0.5em 0;
 }
 
 div#shortcut-queries{
