@@ -35,7 +35,7 @@
 </metal:block>
 
 <!-- requires `is_authenticated` and `users` indexed user_info-s by uid -->
-<metal:block define-macro="table-user-info">
+<metal:block define-macro="table-user-info" tal:define="showMembershipType showMembershipType|nothing">
     <table class="account-datatable dataTable">
     <thead>
         <tr>
@@ -48,6 +48,7 @@
                 <td>Email</td>
                 <td>Tel/Fax</td>
                 <td>Organisation</td>
+                <td tal:condition="showMembershipType">Membership type</td>
             </tal:block>
         </tr>
     </thead>
@@ -60,6 +61,7 @@
                 <td><strong>Deleted user</strong></td>
                 <td></td>
                 <td></td>
+                <td tal:condition="showMembershipType"></td>
             </tr>
 
             <tr tal:condition="python: not users[user_id].get('deleted')">
@@ -99,6 +101,9 @@
 
                 <td>
                     <span tal:content="user_info/organisation" />
+                </td>
+                <td tal:condition="showMembershipType">
+                    <span tal:content="python:user_info['membershipType'].get(role_id, ' - ')" />
                 </td>
 
                 </tal:block>

@@ -77,6 +77,8 @@ LDAP_USER_SCHEMA = {
     'reasonToCreate': 'reasonToCreate',
     # date when user was informed that account will be disabled
     'employeeNumber': 'pending_disable',
+    # user to role membership type
+    'membershipType': 'myinformation',
 }
 
 # actually operational ldap attributes
@@ -188,6 +190,16 @@ def log_ldap_exceptions(func):
 def generate_action_id():
     return "".join(random.sample(ascii_lowercase, 20))
 
+def parse_membership_type(mt):
+    result = {}
+
+    if mt:
+        entries = [x for x in mt.split(', ') if x.startswith('MT:')]
+        for entry in entries:
+            _, role_name, mt = entry.split(':')
+            result[role_name] = mt
+
+    return result
 
 class StreamingLDAPObject(LDAPObject, ResultProcessor):
     """ Useful in getting more results by bypassing
@@ -647,6 +659,7 @@ class UsersDB(object):
 
         user_info = self._unpack_user_info(dn, attr)
         user_info['orgs'] = self._search_user_in_orgs(user_id)
+        user_info['membershipType'] = parse_membership_type(user_info['membershipType'])
 
         return user_info
 
@@ -1968,6 +1981,30 @@ class UsersDB(object):
             })
         return roles
 
+    @log_ldap_exceptions
+    def set_membership_type(self, role_id, user_id, membership_type):
+        assert self._bound, "call `perform_bind` before `set_membership_type`"
+        log.info("Setting %r membership type for %r on role %r",
+                 membership_type, user_id, role_id)
+        user_info = self.user_info(user_id)
+        user_dn = self._user_dn(user_id)
+        user_mt = user_info['membershipType']
+        user_mt[role_id] = membership_type
+        new_mt = [
+            u"MT:{}:{}".format(r_id, mt).encode(self._encoding)
+            for r_id, mt
+            in user_mt.items()
+            if mt
+        ]
+        try:
+            self.conn.modify_s(user_dn, (
+                (ldap.MOD_REPLACE, 'myinformation', new_mt),
+            ))
+        except ldap.NO_SUCH_ATTRIBUTE:
+            self.conn.modify_s(user_dn, (
+                (ldap.MOD_ADD, 'myinformation', new_mt),
+            ))
+
     def mail_group_info(self, role_id):
         """ Returns:
         * list of user_id-s that are owners of given role_id
@@ -2352,6 +2389,8 @@ class UsersDB(object):
 
         role_dn_list = self._remove_member_dn_from_role_dn(role_dn, member_dn)
         roles = sorted([self._role_id(x) for x in role_dn_list])
+
+        self.set_membership_type(role_id, member_id, None)
 
         for r in roles:
             self.add_change_record(member_dn, REMOVED_FROM_ROLE,

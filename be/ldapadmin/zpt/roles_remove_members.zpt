@@ -45,6 +45,9 @@
                 <td>
                     User ID
                 </td>
+                <td>
+                    Membership type
+                </td>
             </tr>
         </thead>
         
@@ -61,6 +64,9 @@
                     
                     <td>
                         <span tal:content="user_id"/>
+                    </td>
+                    <td>
+                        <span tal:content="python:user_info['membershipType'].get(role_id, ' - ')" />
                     </td>
                 </tr>
             </tal:block>

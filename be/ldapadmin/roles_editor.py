@@ -88,13 +88,21 @@ SESSION_MESSAGES = SESSION_PREFIX + '.messages'
 SESSION_FORM_DATA = SESSION_PREFIX + '.form_data'
 
 
-ROLES_STATUS = (
+OPTIONS_ROLES_STATUS = (
     "Expected",
     "In discussion",
     "Pending",
     "Comitology",
     "Permanent group",
     "Ad hoc group",
+)
+
+OPTIONS_MEMBERSHIP_TYPE = (
+    "Expert",
+    "Info",
+    "Pilot",
+    "President",
+    "Official representative",
 )
 
 
@@ -387,7 +395,7 @@ class RolesEditor(Folder):
                         del(role_infos[role])
         options = {
             'roles_domain': ROLES_DOMAIN,
-            'roles_status': ROLES_STATUS,
+            'roles_status': OPTIONS_ROLES_STATUS,
             'role_id': role_id,
             'role_name': get_role_name(agent, role_id),
             'role_info': role_info,
@@ -888,6 +896,7 @@ class RolesEditor(Folder):
             'role_id': role_id,
             'search_name': search_name,
             'search_results': None,
+            'options_membership_type': OPTIONS_MEMBERSHIP_TYPE,
         }
         if search_name:
             agent = self._get_ldap_agent()
@@ -908,6 +917,7 @@ class RolesEditor(Folder):
     def add_user(self, REQUEST):
         """ Add user `user_id` to role `role_id` """
         role_id = REQUEST.form['role_id']
+        membership_type = REQUEST.form['membership_type']
         if not self.can_edit_members(role_id, REQUEST.AUTHENTICATED_USER):
             raise Unauthorized("You are not allowed to manage members in %s" %
                                role_id)
@@ -915,11 +925,12 @@ class RolesEditor(Folder):
         agent = self._get_ldap_agent(bind=True)
         with agent.new_action():
             role_id_list = agent.add_to_role(role_id, 'user', user_id)
+            agent.set_membership_type(role_id, user_id, membership_type)
         roles_msg = roles_list_to_text(agent, role_id_list)
-        msg = "User %r added to roles %s." % (user_id, roles_msg)
+        msg = "User %r added to roles %s with membership type %s." % (user_id, roles_msg, membership_type)
         _set_session_message(REQUEST, 'info', msg)
-        log.info("%s ADDED USER %s to ROLE(S) %r",
-                 logged_in_user(REQUEST), user_id, role_id_list)
+        log.info("%s ADDED USER %s to ROLE(S) %r WITH MEMBERSHIP TYPE %s",
+                 logged_in_user(REQUEST), user_id, role_id_list, membership_type)
 
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/?role_id=' + role_id)
 
