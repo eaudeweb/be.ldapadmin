@@ -95,8 +95,9 @@ function selectAll(name, additional_class){
 					if(data.error)
 						alert(data.error);
 					else{
-						$('div#role-name h1').text(role_name);
+						$('div#role-name h1').text(role_name.trim() !== "" ? role_name : role_id);
 						$('#role-description').text(role_description);
+						$('#role-status').text(role_status);
 						$('div#role-name-edit').hide(200, function(){
 							$('div#role-name').show();
 						});

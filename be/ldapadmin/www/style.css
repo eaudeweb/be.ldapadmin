@@ -793,6 +793,9 @@ div#role-status {
 	display: inline-block;
 	margin: 0.5em;
 }
+div#role-status:empty {
+	display: none;
+}
 div#role-description{
 	clear: both;
 	white-space-collapse: preserve;

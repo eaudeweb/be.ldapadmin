@@ -725,6 +725,8 @@ class UsersDB(object):
         description = attr.get('description', [""])[0].decode(self._encoding)
         postalAddress = attr.get('postalAddress', [""])[0].decode(self._encoding).replace('$', '\n')
         postOfficeBox = attr.get('postOfficeBox', [""])[0].decode(self._encoding)
+        isDeactivatedRaw = attr.get('l', ["deactivated:False"])[0].decode(self._encoding)
+        isDeactivated = isDeactivatedRaw.lower().split('deactivated:')[-1] == 'true' or False
         extended = attr.get('businessCategory', ['False'])[0]
         extended = True and extended.lower() == 'true' or False
 
@@ -732,6 +734,7 @@ class UsersDB(object):
             'description': description,  # this is used as title
             'postalAddress': postalAddress,  # this is used as description
             'postOfficeBox': postOfficeBox,  # this is used as status
+            'isDeactivated': isDeactivated,
             'owner': attr.get('owner', []),
             'permittedSender': attr.get('permittedSender', []),
             'permittedPerson': attr.get('permittedPerson', []),

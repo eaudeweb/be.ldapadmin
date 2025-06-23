@@ -1025,7 +1025,7 @@ class RolesEditor(Folder):
         header = ('Name', 'User ID', 'Email', 'Tel', 'Fax', 'Postal Address',
                   'Organisation')
         if subroles:
-            header = ('Subrole', 'Role description', 'Role status') + header
+            header = ('Subrole', 'Role description', 'Role status', 'Role deactivated') + header
 
         agent = self._get_ldap_agent()
         try:
@@ -1054,7 +1054,10 @@ class RolesEditor(Folder):
                         roles_info[role] = role_info
                     rows.append([
                         value.encode('utf-8')
-                        for value in [role, role_info["postalAddress"], role_info['postOfficeBox']] + row
+                        for value in [
+                            role,
+                            role_info["postalAddress"], role_info['postOfficeBox'], str(role_info['isDeactivated'])
+                         ] + row
                     ])
             else:
                 rows.append([value.encode('utf-8') for value in row])
@@ -1070,13 +1073,17 @@ class RolesEditor(Folder):
             # enable cell overwrite, otherwise merge will fail
             ws._cell_overwrite_ok = True
 
+            merge_columns = [
+                0, # name
+                1, # description
+                2, # status
+                3, # deactivated
+            ]
+
             current_slice_start = 0
-            current_slice_end = 0
             len_rows = len(rows)
             for i in range(0, len_rows):
                 current_role = rows[i][0]
-                current_description = rows[i][1]
-                current_status = rows[i][2]
                 next_role = rows[i+1][0] if i + 1 < len_rows else None
                 if next_role != current_role:
                     current_slice_end = i
@@ -1085,14 +1092,14 @@ class RolesEditor(Folder):
                     offset_slice_range_start = current_slice_start + 1
                     offset_slice_range_end = current_slice_end + 1
 
-                    # merge first column (role)
-                    ws.write_merge(offset_slice_range_start, offset_slice_range_end, 0, 0, current_role, style_center)
-
-                    # merge second column (role description)
-                    ws.write_merge(offset_slice_range_start, offset_slice_range_end, 1, 1, current_description, style_center)
-
-                    # merge third column (role status)
-                    ws.write_merge(offset_slice_range_start, offset_slice_range_end, 2, 2, current_status, style_center)
+                    for col_idx in merge_columns:
+                        ws.write_merge(
+                            offset_slice_range_start,
+                            offset_slice_range_end,
+                            col_idx, col_idx,
+                            rows[i][col_idx],
+                           style_center,
+                        )
 
                     # start next slice at next row
                     current_slice_start = i + 1
@@ -1350,7 +1357,10 @@ class RolesEditor(Folder):
             return json.dumps({'error':
                                "You are not allowed to manage senders in %s" %
                                role_id})
-        if REQUEST.REQUEST_METHOD == 'POST':
+        agent = self._get_ldap_agent()
+        role_info = agent.role_info(role_id)
+        isDeactivated = role_info['isDeactivated']
+        if REQUEST.REQUEST_METHOD == 'POST' and not isDeactivated:
             description = REQUEST.form.get('role_name')
             address = REQUEST.form.get('role_description')
             role_status = REQUEST.form.get('role_status')
@@ -1370,6 +1380,8 @@ class RolesEditor(Folder):
                 log.info("%s SET POSTOFFICEBOX %r FOR ROLE %s",
                          logged_in_user(REQUEST), role_status, role_id)
                 return json.dumps({'error': False})
+        elif isDeactivated:
+            return json.dumps({'error': u'Role is deactivated!'})
 
     security.declareProtected(view_management_screens, 'manage_add_query_html')
     manage_add_query_html = query.manage_add_query_html
