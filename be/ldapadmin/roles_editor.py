@@ -1025,7 +1025,7 @@ class RolesEditor(Folder):
         header = ('Name', 'User ID', 'Email', 'Tel', 'Fax', 'Postal Address',
                   'Organisation')
         if subroles:
-            header = ('Subrole', 'Role description', ) + header
+            header = ('Subrole', 'Role description', 'Role status') + header
 
         agent = self._get_ldap_agent()
         try:
@@ -1052,7 +1052,10 @@ class RolesEditor(Folder):
                     if role_info is None:
                         role_info = agent.role_info(role)
                         roles_info[role] = role_info
-                    rows.append([value.encode('utf-8') for value in [role, role_info["postalAddress"]] + row])
+                    rows.append([
+                        value.encode('utf-8')
+                        for value in [role, role_info["postalAddress"], role_info['postOfficeBox']] + row
+                    ])
             else:
                 rows.append([value.encode('utf-8') for value in row])
 
@@ -1073,6 +1076,7 @@ class RolesEditor(Folder):
             for i in range(0, len_rows):
                 current_role = rows[i][0]
                 current_description = rows[i][1]
+                current_status = rows[i][2]
                 next_role = rows[i+1][0] if i + 1 < len_rows else None
                 if next_role != current_role:
                     current_slice_end = i
@@ -1086,6 +1090,9 @@ class RolesEditor(Folder):
 
                     # merge second column (role description)
                     ws.write_merge(offset_slice_range_start, offset_slice_range_end, 1, 1, current_description, style_center)
+
+                    # merge third column (role status)
+                    ws.write_merge(offset_slice_range_start, offset_slice_range_end, 2, 2, current_status, style_center)
 
                     # start next slice at next row
                     current_slice_start = i + 1
