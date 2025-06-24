@@ -6,6 +6,7 @@ import json
 import logging
 import random
 import re
+from copy import deepcopy
 from string import ascii_lowercase, digits, ascii_letters
 import ldap
 import ldap.filter
@@ -1073,6 +1074,7 @@ class UsersDB(object):
         for org_id in organisations:
             self.remove_from_org(org_id, [user_id])
 
+        user_info = self.user_info(user_id)
         roles = self.list_member_roles("user", user_id)
         for role in roles:
             # it does when it deletes parent role first,
@@ -1092,7 +1094,6 @@ class UsersDB(object):
 
         log.info("Disabling user %r", user_id)
 
-        user_info = self.user_info(user_id)
         user_dn = self._user_dn(user_id)
         self.add_change_record(user_dn, DISABLE_ACCOUNT, {
             'email': user_info['email'],
@@ -1100,6 +1101,7 @@ class UsersDB(object):
             'roles': list(roles),
             'roles_permittedPerson': list(roles_p),
             'roles_owner': list(roles_owner),
+            'membership_type': user_info['membership_type'],
         })
 
         result = self.conn.modify_s(
@@ -1252,12 +1254,13 @@ class UsersDB(object):
         if restore_roles:
             # add the user back to the organisations and roles that it had
             data = rec['data']
+            membership_type = data.get('membership_type', {})
             for org in data['organisations']:
                 self.add_to_org(org, [user_id])
 
             for role in data['roles']:
                 try:
-                    self.add_to_role(role, 'user', user_id)
+                    self.add_to_role(role, 'user', user_id, membership_type.get(role))
                 except ValueError:  # role was probably removed
                     continue
 
@@ -2001,7 +2004,8 @@ class UsersDB(object):
             )
         user_info = self.user_info(user_id)
         user_dn = self._user_dn(user_id)
-        user_mt = user_info['membership_type']
+        old_user_mt = user_info['membership_type']
+        user_mt = deepcopy(old_user_mt)
         user_mt[role_id] = membership_type
         new_mt = [
             u"MT:{}:{}".format(r_id, mt).encode(self._encoding)
@@ -2017,6 +2021,7 @@ class UsersDB(object):
             self.conn.modify_s(user_dn, (
                 (ldap.MOD_ADD, 'myinformation', new_mt),
             ))
+        return old_user_mt.get(role_id), user_mt.get(role_id)
 
     def mail_group_info(self, role_id):
         """ Returns:
@@ -2403,11 +2408,10 @@ class UsersDB(object):
         role_dn_list = self._remove_member_dn_from_role_dn(role_dn, member_dn)
         roles = sorted([self._role_id(x) for x in role_dn_list])
 
-        self.set_membership_type(role_id, member_id, None)
-
         for r in roles:
+            old_mt, _ = self.set_membership_type(r, member_id, None)
             self.add_change_record(member_dn, REMOVED_FROM_ROLE,
-                                   {'role': r, 'member_type': member_type})
+                                   {'role': r, 'member_type': member_type, 'membership_type': old_mt})
         return map(self._role_id, role_dn_list)
 
     @log_ldap_exceptions

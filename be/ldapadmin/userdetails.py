@@ -205,7 +205,7 @@ class UserDetails(SimpleItem):
 
             _roles = entry.get('data', {}).get('roles')
             _role = entry.get('data', {}).get('role')
-            if date.asdatetime().date() >= filter_date:
+            if date.asdatetime().date() >= filter_date + timedelta(days=1):
                 if entry['action'] == 'ENABLE_ACCOUNT':
                     filtered_roles.difference_update(set(_roles))
                 elif entry['action'] == "DISABLE_ACCOUNT":
@@ -237,6 +237,7 @@ class UserDetails(SimpleItem):
                 output.append(entry)
 
         removed_roles = []
+        removed_membership_type = {}
         if user.get('status') == 'disabled':
             auth_user = self.REQUEST.AUTHENTICATED_USER
             if not bool(auth_user.has_permission(ldap_edit_users, self)):
@@ -245,6 +246,7 @@ class UserDetails(SimpleItem):
             # being disabled
             for entry in log_entries:
                 if entry['action'] == 'DISABLE_ACCOUNT':
+                    removed_membership_type = entry['data'][0].get('membership_type', {})
                     for role in entry['data'][0]['roles']:
                         try:
                             role_description = agent.role_info(role)[
@@ -258,7 +260,9 @@ class UserDetails(SimpleItem):
         return self._render_template(
             "zpt/userdetails/index.zpt", context=self,
             filtered_roles=filtered_roles, user=user, roles=roles, orgs=orgs,
-            removed_roles=removed_roles, multi=multi, log_entries=output)
+            removed_roles=removed_roles, removed_membership_type=removed_membership_type,
+            multi=multi, log_entries=output,
+        )
 
     security.declarePublic("simple_profile")
 
