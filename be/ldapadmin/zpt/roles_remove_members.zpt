@@ -66,7 +66,7 @@
                         <span tal:content="user_id"/>
                     </td>
                     <td>
-                        <span tal:content="python:user_info['membershipType'].get(role_id, ' - ')" />
+                        <span tal:content="python:user_info['membership_type'].get(role_id, ' - ')" />
                     </td>
                 </tr>
             </tal:block>

@@ -659,7 +659,7 @@ class UsersDB(object):
 
         user_info = self._unpack_user_info(dn, attr)
         user_info['orgs'] = self._search_user_in_orgs(user_id)
-        user_info['membershipType'] = parse_membership_type(user_info['membershipType'])
+        user_info['membership_type'] = parse_membership_type(user_info['membershipType'])
 
         return user_info
 
@@ -1988,7 +1988,7 @@ class UsersDB(object):
                  membership_type, user_id, role_id)
         user_info = self.user_info(user_id)
         user_dn = self._user_dn(user_id)
-        user_mt = user_info['membershipType']
+        user_mt = user_info['membership_type']
         user_mt[role_id] = membership_type
         new_mt = [
             u"MT:{}:{}".format(r_id, mt).encode(self._encoding)

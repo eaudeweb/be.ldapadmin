@@ -103,7 +103,7 @@
                     <span tal:content="user_info/organisation" />
                 </td>
                 <td tal:condition="showMembershipType">
-                    <span tal:content="python:user_info['membershipType'].get(role_id, ' - ')" />
+                    <span tal:content="python:user_info['membership_type'].get(role_id, ' - ')" />
                 </td>
 
                 </tal:block>

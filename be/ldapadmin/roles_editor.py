@@ -1072,7 +1072,13 @@ class RolesEditor(Folder):
         header = ('Name', 'User ID', 'Email', 'Tel', 'Fax', 'Postal Address',
                   'Organisation')
         if subroles:
-            header = ('Subrole', 'Role description', 'Role status', 'Role deactivated') + header
+            header = (
+                 'Subrole',
+                 'Role description',
+                 'Role status',
+                 'Role deactivated',
+                 'Membership type',
+            ) + header
 
         agent = self._get_ldap_agent()
         try:
@@ -1103,7 +1109,10 @@ class RolesEditor(Folder):
                         value.encode('utf-8')
                         for value in [
                             role,
-                            role_info["postalAddress"], role_info['postOfficeBox'], str(role_info['isDeactivated'])
+                            role_info["postalAddress"],
+                            role_info['postOfficeBox'],
+                            str(role_info['isDeactivated']),
+                            usr['membership_type'].get(role, '-'),
                          ] + row
                     ])
             else:
