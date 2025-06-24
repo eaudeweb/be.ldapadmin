@@ -748,6 +748,7 @@ class UsersDB(object):
             'postalAddress': postalAddress,  # this is used as description
             'postOfficeBox': postOfficeBox,  # this is used as status
             'isDeactivated': isDeactivated,
+            'isActivated': not isDeactivated,
             'owner': attr.get('owner', []),
             'permittedSender': attr.get('permittedSender', []),
             'permittedPerson': attr.get('permittedPerson', []),
@@ -1964,28 +1965,40 @@ class UsersDB(object):
         return roles
 
     @log_ldap_exceptions
-    def add_to_role(self, role_id, member_type, member_id):
+    def add_to_role(self, role_id, member_type, member_id, membership_type=None):
         assert self._bound, "call `perform_bind` before `add_to_role`"
-        log.info("Adding %r member %r to role %r",
-                 member_type, member_id, role_id)
+        log.info("Adding %r member %r to role %r (%s)",
+                 member_type, member_id, role_id, membership_type)
         member_dn = self._member_dn(member_type, member_id)
         role_dn = self._role_dn(role_id)
 
         role_dn_list = self._add_member_dn_to_role_dn(role_dn, member_dn)
+        self.set_membership_type(role_id, member_id, membership_type)
         roles = map(self._role_id, role_dn_list)
         user_dn = self._user_dn(member_id)
-        for role_id in roles:
-            self.add_change_record(user_dn, ADDED_TO_ROLE, {
-                'role': role_id,
+        for r_id in roles:
+            change_data = {
+                'role': r_id,
                 'member_type': member_type,
-            })
+            }
+            if membership_type and (r_id == role_id):
+                change_data['membership_type'] = membership_type
+            self.add_change_record(user_dn, ADDED_TO_ROLE, change_data)
         return roles
 
     @log_ldap_exceptions
     def set_membership_type(self, role_id, user_id, membership_type):
         assert self._bound, "call `perform_bind` before `set_membership_type`"
-        log.info("Setting %r membership type for %r on role %r",
-                 membership_type, user_id, role_id)
+        if membership_type is None:
+            log.info(
+                "Removing membership type for %r on role %r",
+                user_id, role_id,
+            )
+        else:
+            log.info(
+                "Setting %r membership type for %r on role %r",
+                membership_type, user_id, role_id,
+            )
         user_info = self.user_info(user_id)
         user_dn = self._user_dn(user_id)
         user_mt = user_info['membership_type']

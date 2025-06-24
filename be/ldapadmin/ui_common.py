@@ -181,6 +181,7 @@ class CommonTemplateLogic(object):
             'current_page': current_page,
             'role_id': role_id,
             'is_deactivated': is_deactivated,
+            'is_activated': not is_deactivated,
             'common': self,
             'can_edit_roles': self.context.can_edit_roles(user),
             'can_edit_members': self.context.can_edit_members(role_id, user),

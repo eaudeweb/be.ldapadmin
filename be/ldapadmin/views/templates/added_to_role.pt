@@ -1,2 +1,4 @@
 <strong>Roles</strong> <br/>
-<div tal:repeat="role view/roles"> + <span tal:content="role" /></div>
+<div tal:repeat="role view/roles"> + <span tal:content="role" />
+    <tal:mt tal:condition="python:role in view.membership_types">(<span tal:replace="python:view.membership_types[role]">mt</span>)</tal:mt>
+</div>

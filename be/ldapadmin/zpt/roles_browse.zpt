@@ -3,7 +3,7 @@
         or 'Role %s' % options['role_id'])"
         tal:content="name" class="left-position" />
     <div id="role-status" title="Status" tal:content="role_status"></div>
-    <img tal:condition="python:options.get('role_id') and (not options['role_info']['isDeactivated']) and options['can_edit_members']"
+    <img tal:condition="python:options.get('role_id') and options['role_info']['isActivated'] and options['can_edit_members']"
         src="/++resource++be.ldapadmin-www/edit.gif" id="edit-role-description-arrow" />
     <div id="role-description" tal:content="options/role_info/postalAddress|nothing"></div>
 </div>

@@ -2,6 +2,7 @@
     is_auth python: common.is_authenticated();
     role_id options/role_id | nothing;
     is_deactivated options/is_deactivated | nothing;
+    is_activated options/is_activated | nothing;
     can_edit_members options/can_edit_members;
     can_edit_roles options/can_edit_roles;
     can_edit_extended_roles options/can_edit_extended_roles;
@@ -156,7 +157,7 @@
         </a>
 
         <a id="deactivate-role" class="button" tal:define="deactivate_url string:${common/base_url}/deactivate_role"
-           tal:condition="python:role_id and (not is_deactivated) and can_delete_role"
+           tal:condition="python:role_id and is_activated and can_delete_role"
            tal:attributes="href string:${deactivate_url}?role_id=${role_id}">
           Deactivate role <span tal:content="role_id" />
         </a>

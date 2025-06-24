@@ -657,6 +657,12 @@ class RolesEditor(Folder):
         arguments have arbitrary number
 
         """
+        agent = self._get_ldap_agent()
+        role_info = agent.role_info(role_id)
+
+        if role_info['isDeactivated']:
+            return False
+
         try:
             uid = user._id
         except AttributeError:
@@ -669,8 +675,6 @@ class RolesEditor(Folder):
             # top role - can_edit_roles check was sufficient for granting
             return False
 
-        agent = self._get_ldap_agent()
-        role_info = agent.role_info(role_id)
         return agent._user_dn(user.getId()) in role_info['owner']
 
     security.declareProtected(view, 'can_delete_role')
@@ -924,8 +928,7 @@ class RolesEditor(Folder):
         user_id = REQUEST.form['user_id']
         agent = self._get_ldap_agent(bind=True)
         with agent.new_action():
-            role_id_list = agent.add_to_role(role_id, 'user', user_id)
-            agent.set_membership_type(role_id, user_id, membership_type)
+            role_id_list = agent.add_to_role(role_id, 'user', user_id, membership_type)
         roles_msg = roles_list_to_text(agent, role_id_list)
         msg = "User %r added to roles %s with membership type %s." % (user_id, roles_msg, membership_type)
         _set_session_message(REQUEST, 'info', msg)
@@ -1070,15 +1073,19 @@ class RolesEditor(Folder):
         REQUEST.RESPONSE.setHeader('Content-Disposition',
                                    "attachment;filename=%s" % filename)
         header = ('Name', 'User ID', 'Email', 'Tel', 'Fax', 'Postal Address',
-                  'Organisation')
+                  'Organisation', )
         if subroles:
             header = (
-                 'Subrole',
+                 'Role',
                  'Role description',
                  'Role status',
                  'Role deactivated',
                  'Membership type',
             ) + header
+        else:
+            # Membership type is the last column in single role export,
+            # but it is right next to the role columns for subroles export.
+            header = header + ('Membership type', )
 
         agent = self._get_ldap_agent()
         try:
@@ -1116,6 +1123,7 @@ class RolesEditor(Folder):
                          ] + row
                     ])
             else:
+                row.append(usr['membership_type'].get(role_id, '-'))
                 rows.append([value.encode('utf-8') for value in row])
 
         def fiddle_workbook(wb):
