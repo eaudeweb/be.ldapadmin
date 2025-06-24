@@ -414,6 +414,7 @@ class RolesEditor(Folder):
             'agent': agent,
             'get_user_info': get_user_info,
             'has_groupware': has_groupware,
+            'options_membership_type': OPTIONS_MEMBERSHIP_TYPE,
         }
 
         self._set_breadcrumbs(self._role_parents_stack(role_id))
@@ -919,7 +920,7 @@ class RolesEditor(Folder):
     security.declareProtected(view, 'add_user')
 
     def add_user(self, REQUEST):
-        """ Add user `user_id` to role `role_id` """
+        """ Add user `user_id` to role `role_id` with membership type `membership_type` """
         role_id = REQUEST.form['role_id']
         membership_type = REQUEST.form['membership_type']
         if not self.can_edit_members(role_id, REQUEST.AUTHENTICATED_USER):
@@ -934,6 +935,24 @@ class RolesEditor(Folder):
         _set_session_message(REQUEST, 'info', msg)
         log.info("%s ADDED USER %s to ROLE(S) %r WITH MEMBERSHIP TYPE %s",
                  logged_in_user(REQUEST), user_id, role_id_list, membership_type)
+
+        REQUEST.RESPONSE.redirect(self.absolute_url() + '/?role_id=' + role_id)
+
+    def edit_user_membership_type(self, REQUEST):
+        """ Change user `user_id` membership type `membership_type` in role `role_id` """
+        role_id = REQUEST.form['role_id']
+        membership_type = REQUEST.form['membership_type']
+        if not self.can_edit_members(role_id, REQUEST.AUTHENTICATED_USER):
+            raise Unauthorized("You are not allowed to manage members in %s" %
+                               role_id)
+        user_id = REQUEST.form['user_id']
+        agent = self._get_ldap_agent(bind=True)
+        with agent.new_action():
+            agent.set_membership_type(role_id, user_id, membership_type)
+        msg = "User %r updated role %s membership type %s." % (user_id, role_id, membership_type)
+        _set_session_message(REQUEST, 'info', msg)
+        log.info("%s UPDATED USER %s ROLE %r MEMBERSHIP TYPE %s",
+                 logged_in_user(REQUEST), user_id, role_id, membership_type)
 
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/?role_id=' + role_id)
 

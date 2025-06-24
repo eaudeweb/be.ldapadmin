@@ -145,7 +145,7 @@
         <kbd tal:content="string:${role_name} (${role_id})" />
       </h2>
 
-      <tal:block define="users role_members/users; showMembershipType python:True">
+      <tal:block define="users role_members/users; showMembershipType python:True; can_edit_members options/can_edit_members">
           <metal:block use-macro="common/macros/table-user-info" />
       </tal:block>
     </tal:block>

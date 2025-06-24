@@ -35,7 +35,7 @@
 </metal:block>
 
 <!-- requires `is_authenticated` and `users` indexed user_info-s by uid -->
-<metal:block define-macro="table-user-info" tal:define="showMembershipType showMembershipType|nothing">
+<metal:block define-macro="table-user-info" tal:define="showMembershipType showMembershipType|nothing; can_edit_members can_edit_members|nothing">
     <table class="account-datatable dataTable">
     <thead>
         <tr>
@@ -102,8 +102,28 @@
                 <td>
                     <span tal:content="user_info/organisation" />
                 </td>
-                <td tal:condition="showMembershipType">
-                    <span tal:content="python:user_info['membership_type'].get(role_id, ' - ')" />
+                <td class="membership-type" tal:condition="showMembershipType" tal:define="mt python:user_info['membership_type'].get(role_id)">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="membership-type-value" tal:content="python:mt or '-'" />
+                        <tal:editMT tal:condition="can_edit_members">
+                            <button class="membership-type-edit" onclick="$(this).parents('.membership-type').find('form').show(); $(this).parents('.membership-type').find('.membership-type-value').hide(); $(this).hide()">Edit</button>
+                            <form tal:attributes="action string:${common/base_url}/edit_user_membership_type" name="edit-user" method="post" style="display: none">
+                                <input type="hidden" name="role_id" tal:attributes="value options/role_id" />
+                                <input type="hidden" name="user_id" tal:attributes="value user_info/id" />
+                                <select name="membership_type" required="required">
+                                    <option value="">Select membership type</option>
+                                    <option
+                                        tal:repeat="option_mt options/options_membership_type"
+                                        tal:content="option_mt"
+                                        tal:attributes="value option_mt; selected python:option_mt == mt"></option>
+                                </select>
+                                <div style="margin-top: 1em; display: flex; justify-content: space-between; align-items: center;">
+                                    <input type="submit" value="Save" class="primary-button" />
+                                    <a href="#" onclick="$(this).parents('.membership-type').find('form').hide(); $(this).parents('.membership-type').find('.membership-type-edit, .membership-type-value').show();return false">Cancel</a>
+                                </div>
+                            </form>
+                        </tal:editMT>
+                    </div>
                 </td>
 
                 </tal:block>
