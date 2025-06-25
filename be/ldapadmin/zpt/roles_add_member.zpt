@@ -54,19 +54,15 @@
         <td>
           Name / Email
         </td>
-        
         <td>
           User ID
         </td>
-        
         <td>
           Tel/Fax
         </td>
-        
         <td>
           Organisation
         </td>
-        
         <td>
           Add as member
         </td>
@@ -77,12 +73,16 @@
       <tr tal:repeat="user_info results/users">
         <td>
           <span tal:content="user_info/full_name" />
-          <br />
-          
-          <a tal:condition="user_info/email"
-                  tal:attributes="href string:mailto:${user_info/email}"
-                  tal:content="user_info/email"
-                  class="user-email"></a>
+          <tal:block define="emails user_info/email"
+              condition="user_info/email">
+            <br />
+            <tal:block tal:repeat="email python:emails.split(', ')">
+              <a tal:attributes="href string:mailto:${email}"
+                 tal:content="email"
+                 class="user-email"></a><tal:block content="string:, "
+                   condition="not:repeat/email/end" />
+            </tal:block>
+          </tal:block>
         </td>
 
         <td>

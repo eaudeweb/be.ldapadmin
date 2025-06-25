@@ -32,16 +32,23 @@
     <form method="post" name="update-senders"
         tal:attributes="action string:${common/base_url}/edit_senders_senders?role_id=${options/role_id}">
     <ul id="senders_tokens">
-      <li><input type='checkbox' name='senders:list' id='anyone' value='anyone'
-           tal:attributes="checked python:'anyone' in senders and 'checked' or ''" /><label for="anyone">Anyone</label>
-            - <span class="info">any email address (public senders)</span>
+      <li>
+        <input type='checkbox' name='senders:list' id='anyone' value='anyone'
+           tal:attributes="checked python:'anyone' in senders and 'checked' or ''" />
+        <span class="label"><label for="anyone">Anyone</label>
+           - <span class="info">any email address (public senders)</span></span>
       </li>
-      <li><input type='checkbox' name='senders:list' id='owners' value='owners'
-           tal:attributes="checked python:'owners' in senders and 'checked' or ''" /><label for="owners">Owners</label>
-            - <span class="info">this role's owners</span></li>
-      <li><input type='checkbox' name='senders:list' id='members' value='members'
-           tal:attributes="checked python:'members' in senders and 'checked' or ''" /><label for="members">All members of this mailing list</label>
-            - <span class="info">any member of this role (or subrole)</span>
+      <li>
+        <input type='checkbox' name='senders:list' id='owners' value='owners'
+           tal:attributes="checked python:'owners' in senders and 'checked' or ''" />
+        <span class="label"><label for="owners">Owners</label>
+           - <span class="info">this role's owners</span></span>
+      </li>
+      <li>
+        <input type='checkbox' name='senders:list' id='members' value='members'
+           tal:attributes="checked python:'members' in senders and 'checked' or ''" />
+        <span class="label"><label for="members">All members of this mailing list</label>
+           - <span class="info">any member of this role (or subrole)</span></span>
       </li>
       <li>
         <label for="emails">Explicit email addresses or email address patterns</label> -
@@ -87,7 +94,7 @@
               </td>
               <tal:block condition="python: user_info.get('deleted')">
                 <td colspan="2">
-                    <strong>User no longer exists.</strong>
+                    <strong>Deleted user</strong>
                 </td>
                 <td>
                     <span tal:content="user_info/id" />
@@ -98,7 +105,12 @@
                     <span tal:content="user_info/full_name"/>
                 </td>
                 <td>
-                    <span tal:content="user_info/email"/>
+                  <tal:block repeat="email python:user_info['email'].split(', ')">
+                    <span tal:condition="not:repeat/email/end"
+                          tal:content="string:${email}, "/>
+                    <span tal:condition="repeat/email/end"
+                          tal:content="email"/>
+                  </tal:block>
                 </td>
                 <td>
                     <span tal:content="user_id"/>

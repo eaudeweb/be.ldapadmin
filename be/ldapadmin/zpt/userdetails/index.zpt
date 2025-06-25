@@ -40,6 +40,10 @@
                 font-size:12px;
                 text-align:right;
             }
+            .no-fuss {
+              list-style: none;
+              margin: 0 0 0 -38px;
+            }
         </style>
 
         <script src="/++resource++jquery.min.js"></script>
@@ -56,25 +60,52 @@
         </script>
 
         <div xmlns:foaf="http://xmlns.com/foaf/0.1/"
-            tal:attributes="about string:${common/portal_url}/users/${options/user/uid}" typeof="foaf:Person"
             tal:define="user options/user;
-            disabled python:user.get('status') == 'disabled';
-            can_edit_users common/can_edit_users;
-            is_authenticated common/is_authenticated;">
+                user_id user/uid;
+                disabled python:user.get('status') == 'disabled';
+                can_edit_user python:common.can_edit_user(user_id);
+                can_edit_users common/can_edit_users;
+                is_authenticated common/is_authenticated;">
 
             <h1 property="foaf:name">
                 <tal:block content="user/full_name" />
-                <a tal:condition="can_edit_users"
+                <a tal:condition="python: can_edit_user or can_edit_users"
                     style="background:none"
-                    tal:attributes="href string:/users/edit_user?id=${user/uid}">
+                    tal:attributes="href string:/users/edit_user?id=${user_id}">
                     <img src="/++resource++be.ldapadmin-www/edit.gif" alt="Edit" />
                 </a>
             </h1>
 
+            <div class="account-links" tal:condition="can_edit_user">
+              <a tal:attributes="href string:/users/edit_user?id=${user_id}" class="button"
+                   title="Edit your account">
+                    <img src="/++resource++be.ldapadmin-www/settings.png" class="middle-image image12"
+                         alt="" title="Edit your account" />
+                    Edit your account
+                </a>
+                &nbsp;
+                <a class="button" href="change_password_html"
+                   title="Change your password">
+                    <img src="/++resource++be.ldapadmin-www/lock.png"
+                         class="middle-image image12" alt="" title="Change your password" />
+                    Change your password
+                </a>
+                &nbsp;
+                <a href="profile_picture_html"
+                   class="button" title="Select your profile picture">
+                    <img src="/++resource++be.ldapadmin-www/picture.png" class="middle-image image12"
+                         alt="" title="Select profile picture" />
+                    Profile Picture
+                </a>
+            </div>
+
             <div class="tip-msg" tal:condition="not: is_authenticated">
                 You are displaying this <span tal:replace="common/network_name" /> User details as anonymous.
                 <br /><br />
-                For more information on account please <a href="/loggedin" title="Login to your account">login</a> first, as access to more detailed information, in addition to name, title and ID, is restricted to authenticated users.
+                For more information on account please <a
+                  tal:attributes="href
+                  string:/login/login_form?came_from=${common/base_url}?uid=${user_id}"
+                  title="Login to your account">login</a> first, as access to more detailed information, in addition to name, title and ID, is restricted to authenticated users.
             </div>
 
             <div class="figure figure-right" style="clear: both"
@@ -103,17 +134,23 @@
                     <td tal:content="user/first_name" /></tr>
                 <tr><th scope="row" class="scope-row">Surname</th>
                     <td tal:content="user/last_name" /></tr>
-                <tr><th scope="row" class="scope-row">Organisation</th>
-                  <td>
-                    <tal:block condition="python:user['organisation_title'] and can_edit_users">
-                      <a tal:content="user/organisation_title"
-                        tal:attributes="href string:/organisations/organisation?id=${user/organisation}" />
-                      <tal:block content="string:(${user/organisation})" />
-                    </tal:block>
-                    <tal:block condition="python:user['organisation_title'] and not can_edit_users"
-                    content="string:${user/organisation_title} (${user/organisation})" />
-                    <tal:block condition="not:user/organisation_title"
-                      tal:content="user/organisation" />
+                <tr><th scope="row" class="scope-row">Organisations</th>
+                  <td tal:define="orgs options/orgs">
+                    <ul class="no-fuss">
+                      <tal:block repeat="org options/orgs">
+                        <tal:block define="org_id python:org[0];
+                                           org_title python:org[1];
+                                           last repeat/org/end">
+                          <li>
+                            <a tal:condition="org_title"
+                             tal:content="org_title"
+                             target="_blank"
+                             tal:attributes="href string:/organisations/organisation?id=${org_id}" />
+                            <tal:block condition="not:org_title" tal:content="org_id" />
+                          </li>
+                        </tal:block>
+                      </tal:block>
+                    </ul>
                   </td>
                 </tr>
                 <tal:block condition="python:not disabled and is_authenticated or can_edit_users">
@@ -123,7 +160,14 @@
                     <tr><th scope="row" class="scope-row">Department</th>
                         <td tal:content="user/department" /></tr>
                     <tr><th scope="row" class="scope-row">Mail</th>
-                        <td tal:content="user/email" /></tr>
+                        <td>
+                          <ul class="no-fuss">
+                            <li tal:repeat="email user/email">
+                              <a tal:attributes="href string:mailto:${email}"
+                                 tal:content="email" />
+                            </li>
+                          </ul>
+                        </tr>
                     <tr><th scope="row" class="scope-row">Telephone</th>
                         <td tal:content="user/phone" /></tr>
                     <tr><th scope="row" class="scope-row">Mobile phone</th>
@@ -150,21 +194,17 @@
                         <td tal:content="user/createTimestamp" /></tr>
                     <tr><th scope="row" class="scope-row">Modified</th>
                         <td tal:content="user/modifyTimestamp" /></tr>
-                    <tr><th scope="row" class="scope-row">Password last changed</th>
+                    <tr tal:condition="user/pwdChanged">
+                        <th scope="row" class="scope-row">Password last changed</th>
                         <td tal:attributes="class python:'error-hint' if user['pwdExpired'] and not disabled else ''"
-                          tal:content="user/pwdChanged" /></tr>
+                          tal:content="user/pwdChanged" />
+                    </tr>
                 </tal:block>
             </table>
 
-            <p tal:condition="python: not disabled or can_edit_users">
-                Linked data URL: <a type="application/rdf+xml"
-                    tal:attributes="href string:${common/portal_url}/users/${user/uid}"
-                    tal:content="string:${common/portal_url}/users/${user/uid}" />.
-            </p>
-
             <tal:block condition="python: not disabled and not can_edit_users">
                 <h2>
-                    <form method="GET" action="./user" id="show_roles" tal:condition="is_authenticated">
+                    <form method="GET" action="/user" id="show_roles" tal:condition="is_authenticated">
                         <input type="hidden" name="uid" tal:attributes="value string:${user/uid}" />
                         <label for="date_for_roles">At date:</label>
                         <input type="text" name="date_for_roles" id="datepicker" class="hasDatePicker" 
@@ -188,7 +228,10 @@
                             <tal:block repeat="role options/roles">
                                 <tr tal:condition="python: role[0] in options['filtered_roles']"
                                     tal:attributes="class python:('even', 'odd')[int(path('repeat/role/odd'))]">
-                                    <td tal:content="python: role[0]" nowrap="nowrap" />
+                                    <td>
+                                      <a tal:attributes="href python: '/roles?role_id=' + role[0]"
+                                        tal:content="python: role[0]" nowrap="nowrap" />
+                                    </td>
                                     <td tal:content="python: role[1]" />
                                 </tr>
                             </tal:block>
@@ -206,7 +249,7 @@
             <div tal:condition="can_edit_users">
 
                 <h2>
-                    <form method="GET" action="./user" id="show_roles" tal:condition="not: disabled" >
+                    <form method="GET" action="/user" id="show_roles" tal:condition="not: disabled" >
                         <input type="hidden" name="uid" tal:attributes="value string:${user/uid}" />
                         <label for="date_for_roles">At date:</label>
                         <input type="text" name="date_for_roles" id="datepicker" class="hasDatePicker" 
@@ -234,13 +277,19 @@
                             <tal:block repeat="role options/roles">
                                 <tr tal:condition="python: role[0] in options['filtered_roles']"
                                     tal:attributes="class python:('even', 'odd')[int(path('repeat/role/odd'))]">
-                                    <td tal:content="python: role[0]" nowrap="nowrap" />
+                                    <td>
+                                      <a tal:attributes="href python: '/roles?role_id=' + role[0]"
+                                        tal:content="python: role[0]" nowrap="nowrap" />
+                                    </td>
                                     <td tal:content="python: role[1]" />
                                 </tr>
                             </tal:block>
                             <tal:block repeat="role options/removed_roles">
                                 <tr tal:attributes="class python:('even', 'odd')[int(path('repeat/role/odd'))]">
-                                    <td tal:content="python: role[0]" nowrap="nowrap" />
+                                    <td>
+                                      <a tal:attributes="href python: '/roles?role_id=' + role[0]"
+                                        tal:content="python: role[0]" nowrap="nowrap" />
+                                    </td>
                                     <td tal:content="python: role[1]" />
                                 </tr>
                             </tal:block>

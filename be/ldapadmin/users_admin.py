@@ -3,10 +3,8 @@
 
 from copy import deepcopy
 import logging
-import os
 import random
 import re
-import sqlite3
 import string
 from datetime import datetime
 from zope.component import getUtility
@@ -17,24 +15,22 @@ from OFS.PropertyManager import PropertyManager
 from OFS.SimpleItem import SimpleItem
 from AccessControl.Permissions import view, view_management_screens
 from AccessControl import ClassSecurityInfo
+from AccessControl.unauthorized import Unauthorized
 from App.class_init import InitializeClass
 from Products.Five.browser import BrowserView
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 import colander
 import deform
-from deform.widget import SelectWidget
 import jellyfish
 import ldap
 from unidecode import unidecode
 import xlrd
 from transliterate import translit, get_available_language_codes
-from validate_email import validate_email, INCORRECT_EMAIL
-from naaya.ldapdump.interfaces import IDumpReader
 from be.ldapadmin.schema import user_info_schema, _uid_node, _password_node
-from be.ldapadmin.constants import NETWORK_NAME
+from be.ldapadmin.constants import NETWORK_NAME, USERS_SPECIFIC
 from be.ldapadmin.help_messages import help_messages
 from be.ldapadmin.logic_common import _session_pop, _create_plain_message
-from be.ldapadmin.logic_common import logged_in_user
+from be.ldapadmin.logic_common import logged_in_user, split_to_list
 from be.ldapadmin.ui_common import NaayaViewPageTemplateFile
 from be.ldapadmin import ldap_config
 from be.ldapadmin.db_agent import NameAlreadyExists, EmailAlreadyExists
@@ -46,8 +42,8 @@ from be.ldapadmin.import_export import set_response_attachment
 from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import SessionMessages, TemplateRenderer
 from be.ldapadmin.ui_common import extend_crumbs, TemplateRendererNoWrap
-from be.ldapadmin.constants import ADDR_FROM, HELPDESK_EMAIL
-from be.ldapadmin.constants import LDAP_DISK_STORAGE, LDAP_DB_NAME
+from be.ldapadmin.constants import MAIL_ADDRESS_FROM, HELPDESK_EMAIL
+from be.ldapadmin.ldapdump import get_objects_by_ldap_dump
 
 try:
     import simplejson as json
@@ -66,6 +62,8 @@ user_info_add_schema['postal_address'].widget = deform.widget.TextAreaWidget()
 user_info_edit_schema['postal_address'].widget = deform.widget.TextAreaWidget()
 user_info_add_schema['search_helper'].widget = deform.widget.TextAreaWidget()
 user_info_add_schema['department'].widget = deform.widget.TextAreaWidget()
+user_info_add_schema['email'].widget = deform.widget.TextAreaWidget()
+user_info_edit_schema['email'].widget = deform.widget.TextAreaWidget()
 
 password_letters = '23456789ABCDEFGHIJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 
@@ -127,30 +125,8 @@ def manage_add_users_admin(parent, id, REQUEST=None):
         REQUEST.RESPONSE.redirect(parent.absolute_url() + '/manage_workspace')
 
 
-def get_users_by_ldap_dump():
-    DB_FILE = os.path.join(LDAP_DISK_STORAGE, LDAP_DB_NAME)
-    if not os.path.exists(DB_FILE):
-        util = getUtility(IDumpReader)
-        DB_FILE = util.db_path
-        assert os.path.exists(DB_FILE)
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    cursor.execute(
-        "SELECT a.dn as dn, a.value AS cn "
-        "FROM ldapmapping a WHERE a.attr = 'cn' "
-    )
-
-    ldap_user_records = []
-    for data in cursor.fetchall():
-        ldap_user_records.append({'dn': data['dn'],
-                                  'cn': unidecode(data['cn'])})
-    return ldap_user_records
-
-
 def get_duplicates_by_name(name):
-    ldap_users = get_users_by_ldap_dump()
+    ldap_users = get_objects_by_ldap_dump(USERS_SPECIFIC)
 
     records = []
     for user in ldap_users:
@@ -177,7 +153,7 @@ def _set_session_message(request, msg_type, msg):
 class UsersAdmin(SimpleItem, PropertyManager):
     meta_type = 'LDAP Users Admin'
     security = ClassSecurityInfo()
-    icon = '++resource++be.ldapadmin-www/eionet_users_admin.gif'
+    icon = '++resource++be.ldapadmin-www/users_admin.gif'
     similarity_level = 0.939999
     session_messages = SESSION_MESSAGES
     title = "LDAP Users Administration"
@@ -234,6 +210,11 @@ class UsersAdmin(SimpleItem, PropertyManager):
         """ save changes to configuration """
         self._config.update(ldap_config.read_form(REQUEST.form, edit=True))
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/manage_edit')
+
+    security.declarePublic('can_edit_user')
+
+    def can_edit_user(self, user_id):
+        return logged_in_user(self.REQUEST) == user_id
 
     security.declareProtected(view, 'can_edit_users')
 
@@ -358,7 +339,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
     def _send_new_user_email(self, user_id, user_info):
         """ Sends announcement email to helpdesk """
 
-        addr_from = ADDR_FROM
+        addr_from = MAIL_ADDRESS_FROM
         addr_to = HELPDESK_EMAIL
 
         message = _create_plain_message('')
@@ -403,31 +384,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             if list(agent.existing_usernames([value])):
                 raise colander.Invalid(node, 'This username is taken')
 
-        skip_email_validation_node = colander.SchemaNode(
-            colander.Boolean(),
-            title='',
-            name='skip_email_validation',
-            description='Skip extended email validation',
-            widget=deform.widget.CheckboxWidget(),
-        )
-
         schema = user_info_add_schema.clone()
-
-        # add the "skip email validation" field if email fails validation
-        email = form_data.get('email')
-        if email:
-            email = email.strip()
-            validity_status = validate_email(email, verify=False, verbose=True)
-            if validity_status is not True:
-                email_node = schema['email']
-                pos = schema.children.index(email_node)
-                schema.children.insert(pos + 1, skip_email_validation_node)
-
-        # if the skip_email_validation field exists but is not activated,
-        # add an extra validation to the form
-        if not (form_data.get('edit-skip_email_validation') == 'on'):
-            schema['email'].validator = colander.All(
-                schema['email'].validator, check_valid_email)
 
         for children in schema.children:
             help_text = help_messages['create-user'].get(children.name, None)
@@ -445,11 +402,15 @@ class UsersAdmin(SimpleItem, PropertyManager):
         orgs = [{'id': k, 'text': v['name'], 'text_native': v['name_native'],
                  'ldap':True}
                 for k, v in agent_orgs.items()]
-        org = form_data.get('organisation')
-        if org and not (org in agent_orgs):
-            orgs.append({'id': org, 'text': org, 'text_native': '',
-                         'ldap': False})
-        orgs.sort(lambda x, y: cmp(x['text'], y['text']))
+        form_orgs = form_data.get('organisation')
+        if form_orgs:
+            form_orgs = split_to_list(form_orgs)
+            for org in form_orgs:
+                if org and not (org in agent_orgs):
+                    orgs.append({'id': org, 'text': org, 'text_native': '',
+                                 'ldap': False})
+        else:
+            form_data['organisation'] = []
         choices = [('-', '-')]
         for org in orgs:
             if org['ldap']:
@@ -457,17 +418,22 @@ class UsersAdmin(SimpleItem, PropertyManager):
                     label = u"%s (%s, %s)" % (org['text'], org['text_native'],
                                               org['id'])
                 else:
-                    label = u"%s (%s)" % (org['text'], org['id'])
+                    if org['text']:
+                        label = u"%s (%s)" % (org['text'], org['id'])
+                    else:
+                        label = org['id']
             else:
                 label = org['text']
             choices.append((org['id'], label))
+        choices.sort(key=lambda x: x[1].lower())
 
-        widget = SelectWidget(values=choices)
+        widget = deform.widget.SelectWidget(values=choices, multiple=True)
         schema['organisation'].widget = widget
 
         if 'submit' in REQUEST.form:
             try:
                 user_form = deform.Form(schema)
+                orgs = form_data.pop('organisation')
                 user_info = user_form.validate(form_data.items())
                 user_info['search_helper'] = _transliterate(
                     user_info['first_name'], user_info['last_name'],
@@ -483,6 +449,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 agent = self._get_ldap_agent(bind=True)
                 with agent.new_action():
                     user_info.pop('skip_email_validation', None)
+                    user_info.pop('organisation', None)
                     try:
                         self._create_user(agent, user_info)
                     except NameAlreadyExists:
@@ -490,11 +457,11 @@ class UsersAdmin(SimpleItem, PropertyManager):
                     except EmailAlreadyExists:
                         errors['email'] = 'This email is alreay registered'
                     else:
-                        new_org_id = user_info['organisation']
-                        new_org_id_valid = agent.org_exists(new_org_id)
+                        for new_org_id in orgs:
+                            new_org_id_valid = agent.org_exists(new_org_id)
 
-                        if new_org_id_valid:
-                            self._add_to_org(agent, new_org_id, user_id)
+                            if new_org_id_valid:
+                                self._add_to_org(agent, new_org_id, user_id)
 
                         send_confirmation = 'send_confirmation' in \
                             form_data.keys()
@@ -545,7 +512,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         return self._render_template_no_wrap('zpt/users/find_duplicates.zpt',
                                              **options)
 
-    security.declareProtected(ldap_edit_users, 'edit_user')
+    security.declarePublic('edit_user')
 
     def edit_user(self, REQUEST):
         """
@@ -554,6 +521,9 @@ class UsersAdmin(SimpleItem, PropertyManager):
 
         """
         user_id = REQUEST.form['id']
+        if not (self.checkPermissionEditUsers() or
+                self.can_edit_user(user_id)):
+            raise Unauthorized
         agent = self._get_ldap_agent(bind=True)
         errors = _session_pop(REQUEST, SESSION_FORM_ERRORS, {})
         user = agent.user_info(user_id)
@@ -569,42 +539,21 @@ class UsersAdmin(SimpleItem, PropertyManager):
             orgs = secondary_agent.all_organisations()
         orgs = [{'id': k, 'text': v['name'], 'text_native': v['name_native'],
                  'ldap': True} for k, v in orgs.items()]
-        user_orgs = list(agent.user_organisations(user_id))
-        if not user_orgs:
-            org = form_data.get('organisation')
-            if org:
-                orgs.append(
-                    {'id': org, 'text': org, 'text_native': '', 'ldap': False})
+        user_orgs = form_data.get('organisation')
+        if user_orgs:
+            user_orgs = split_to_list(user_orgs)
+            # Some users have free text, non-existent orgs saved on
+            # their profile, add those to the select options
+            orgs_with_user = agent._search_user_in_orgs(user_id)
+            for org in user_orgs:
+                if org not in orgs_with_user:
+                    orgs.append(
+                        {'id': org, 'text': org, 'text_native': '',
+                         'ldap': False})
+            form_data['organisation'] = user_orgs
         else:
-            org = user_orgs[0]
-            org_id = agent._org_id(org)
-            form_data['organisation'] = org_id
-        orgs.sort(lambda x, y: cmp(x['text'], y['text']))
+            form_data['organisation'] = []
         schema = user_info_edit_schema.clone()
-
-        skip_email_validation_node = colander.SchemaNode(
-            colander.Boolean(),
-            title='',
-            name='skip_email_validation',
-            description='Skip extended email validation',
-            widget=deform.widget.CheckboxWidget(),
-        )
-
-        # add the "skip email validation" field if email fails validation
-        email = form_data.get('email')
-        if email:
-            email = email.strip()
-            validity_status = validate_email(email, verify=False, verbose=True)
-            if validity_status is not True:
-                email_node = schema['email']
-                pos = schema.children.index(email_node)
-                schema.children.insert(pos + 1, skip_email_validation_node)
-
-        # if the skip_email_validation field exists but is not activated,
-        # add an extra validation to the form
-        if not (form_data.get('edit-skip_email_validation') == 'on'):
-            schema['email'].validator = colander.All(
-                schema['email'].validator, check_valid_email)
 
         choices = [('', '-')]
         for org in orgs:
@@ -613,19 +562,19 @@ class UsersAdmin(SimpleItem, PropertyManager):
                     label = u"%s (%s, %s)" % (org['text'], org['text_native'],
                                               org['id'])
                 else:
-                    label = u"%s (%s)" % (org['text'], org['id'])
+                    if org['text']:
+                        label = u"%s (%s)" % (org['text'], org['id'])
+                    else:
+                        label = org['id']
             else:
                 label = org['text']
             choices.append((org['id'], label))
-        widget = SelectWidget(values=choices)
+        choices.sort(key=lambda x: x[1].lower())
+        widget = deform.widget.SelectWidget(values=choices)
         schema['organisation'].widget = widget
 
-        # if 'disabled@' in form_data.get('email', ''):
-        #     user_dn = agent._user_dn(user_id)
-        #     form_data['email'] = "disabled - %s" % \
-        #         agent.get_email_for_disabled_user_dn(user_dn)
-
         options = {'user': user,
+                   'my_account': user_id == logged_in_user(REQUEST),
                    'form_data': form_data,
                    'schema': schema,
                    'errors': errors,
@@ -633,23 +582,26 @@ class UsersAdmin(SimpleItem, PropertyManager):
         self._set_breadcrumbs([(user_id, '#')])
         return self._render_template('zpt/users/edit.zpt', **options)
 
-    security.declareProtected(ldap_edit_users, 'edit_user_action')
+    security.declarePublic('edit_user_action')
 
     def edit_user_action(self, REQUEST):
         """ view """
         user_id = REQUEST.form['id']
+        if not (self.checkPermissionEditUsers() or
+                self.can_edit_user(user_id)):
+            raise Unauthorized
 
         schema = user_info_edit_schema.clone()
-        # if the skip_email_validation field exists but is not activated,
-        # add an extra validation to the form
-        if not (REQUEST.form.get('edit-skip_email_validation') == 'on'):
-            schema['email'].validator = colander.All(
-                schema['email'].validator, check_valid_email)
 
         user_form = deform.Form(schema)
 
         try:
+            orgs = REQUEST.form.pop('organisation', [])
+            if not isinstance(orgs, list):
+                orgs = [orgs]
             new_info = user_form.validate(REQUEST.form.items())
+            new_info['organisation'] = orgs
+            new_info['email'] = split_to_list(new_info['email'])
         except deform.ValidationFailure as e:
             session = REQUEST.SESSION
             errors = {}
@@ -662,32 +614,22 @@ class UsersAdmin(SimpleItem, PropertyManager):
         else:
             agent = self._get_ldap_agent(bind=True)
 
-            new_org_id = new_info['organisation']
-            new_org_id_valid = agent.org_exists(new_org_id)
-
-            # make a check if user is changing the organisation
-            user_orgs = [agent._org_id(org)
-                         for org in list(agent.user_organisations(user_id))]
-
             new_info['search_helper'] = _transliterate(
                 new_info['first_name'], new_info['last_name'],
                 new_info.get('full_name_native', ''),
                 new_info.get('search_helper', ''))
 
             with agent.new_action():
-                if not (new_org_id in user_orgs):
-                    self._remove_from_all_orgs(agent, user_id)
-                    if new_org_id_valid:
-                        self._add_to_org(agent, new_org_id, user_id)
+                result = agent.set_user_info(user_id, new_info)
 
-                agent.set_user_info(user_id, new_info)
-
-            when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            _set_session_message(
-                REQUEST, 'info', "Profile saved (%s)" % when)
-
-            log.info("%s EDITED USER %s as member of %s",
-                     logged_in_user(REQUEST), user_id, new_org_id)
+            if result is True:
+                when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                _set_session_message(
+                    REQUEST, 'info', "Profile saved (%s)" % when)
+                log.info("%s EDITED USER %s", logged_in_user(REQUEST), user_id)
+            else:
+                _set_session_message(
+                    REQUEST, 'info', "No properties were changed")
 
         REQUEST.RESPONSE.redirect(
             self.absolute_url() + '/edit_user?id=' + user_id)
@@ -812,7 +754,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         log.info("%s ENABLED USER %s", logged_in_user(REQUEST), id)
 
         user_info = agent.user_info(id)
-        addr_from = ADDR_FROM
+        addr_from = MAIL_ADDRESS_FROM
         addr_to = user_info['email']
 
         email_password_body = self._render_template.render(
@@ -824,13 +766,14 @@ class UsersAdmin(SimpleItem, PropertyManager):
         message['Subject'] = "%s Account - account enabled" % NETWORK_NAME
         try:
             mailer = getUtility(IMailDelivery, name="Mail")
-            mailer.send(addr_from, [addr_to], message.as_string())
+            mailer.send(addr_from, split_to_list(addr_to), message.as_string())
         except ComponentLookupError:
             mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
             try:
-                mailer.send(addr_from, [addr_to], message.as_string())
-            except AssertionError:
-                mailer.send(addr_from, [addr_to], message)
+                mailer.send(addr_from, split_to_list(addr_to),
+                            message.as_string())
+            except (ValueError, AssertionError):
+                mailer.send(addr_from, split_to_list(addr_to), message)
 
         when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if restore_roles:
@@ -867,7 +810,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             agent.set_user_password(id, None, password)
 
         user_info = agent.user_info(id)
-        addr_from = ADDR_FROM
+        addr_from = MAIL_ADDRESS_FROM
         addr_to = user_info['email']
         email_password_body = self.email_password(user_info['first_name'],
                                                   password, 'change')
@@ -877,10 +820,10 @@ class UsersAdmin(SimpleItem, PropertyManager):
         message['Subject'] = "%s Account - New password" % NETWORK_NAME
         try:
             mailer = getUtility(IMailDelivery, name="Mail")
-            mailer.send(addr_from, [addr_to], message.as_string())
+            mailer.send(addr_from, split_to_list(addr_to), message.as_string())
         except ComponentLookupError:
             mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
-            mailer.send(addr_from, [addr_to], message)
+            mailer.send(addr_from, split_to_list(addr_to), message)
 
         _set_session_message(REQUEST, 'info',
                              'Password changed for "%s".' % id)
@@ -999,7 +942,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
 
     def send_confirmation_email(self, user_info):
         """ Sends confirmation email """
-        addr_from = ADDR_FROM
+        addr_from = MAIL_ADDRESS_FROM
         addr_to = user_info['email']
         message = _create_plain_message('')
         message['From'] = addr_from
@@ -1050,13 +993,13 @@ InitializeClass(UsersAdmin)
 def _send_email(addr_from, addr_to, message):
     try:
         mailer = getUtility(IMailDelivery, name="Mail")
-        mailer.send(addr_from, [addr_to], message.as_string())
+        mailer.send(addr_from, split_to_list(addr_to), message.as_string())
     except ComponentLookupError:
         mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
         try:
-            mailer.send(addr_from, [addr_to], message.as_string())
+            mailer.send(addr_from, split_to_list(addr_to), message.as_string())
         except (ValueError, AssertionError):
-            mailer.send(addr_from, [addr_to], message)
+            mailer.send(addr_from, split_to_list(addr_to), message)
 
 
 class BulkUserImporter(BrowserView):
@@ -1313,14 +1256,6 @@ class MigrateDisabledEmails(BrowserView):
                      user_info['id'])
 
         return "done"
-
-
-def check_valid_email(node, value):
-    validity_status = validate_email(value, verify=False, verbose=True)
-    if validity_status is not True:
-        if validity_status != INCORRECT_EMAIL:  # avoid a double error message
-            raise colander.Invalid(
-                node, 'This email is possibly invalid. %s' % validity_status)
 
 
 def _transliterate(first_name, last_name, full_name_native, search_helper):

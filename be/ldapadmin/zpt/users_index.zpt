@@ -65,10 +65,18 @@
                        tal:attributes="href python:'edit_user?id=%s'%user['id']"></a>
                     <span tal:content="string:(${user/id})"></span>
                 </td>
-    
-                <td>
-                    <a tal:attributes="href string:mailto:${user/email}; title string:Send email to ${user/full_name}"
-                       tal:content="user/email" />
+
+                <td tal:define="emails python:user['email'].split(', ')">
+                  <tal:block repeat="email emails">
+                    <a tal:condition="not:repeat/email/end"
+                       tal:attributes="href string:mailto:${email};
+                                       title string:Send email to ${user/full_name}"
+                       tal:content="string:${email}, " />
+                    <a tal:condition="repeat/email/end"
+                       tal:attributes="href string:mailto:${email};
+                                       title string:Send email to ${user/full_name}"
+                       tal:content="email" />
+                  </tal:block>
                 </td>
             </tr>
         </tbody>

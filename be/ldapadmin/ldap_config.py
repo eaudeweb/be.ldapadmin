@@ -9,7 +9,7 @@ defaults = {
     'ldap_server': "127.0.0.1",
     'users_rdn': 'uid',
     'users_dn': "ou=Users,ou=DATA,ou=america,o=IRCusers,dc=CIRCA,dc=local",
-    'orgs_dn': "ou=DATA,ou=america,o=IRCorganisations,dc=CIRCA,dc=local",
+    'orgs_dn': "ou=IRCorganisations,dc=CIRCA,dc=local",
     'roles_dn': "ou=DATA,ou=america,o=IRCroles,dc=CIRCA,dc=local",
     'secondary_admin_dn': "cn=Manager,dc=CIRCA,dc=local",
     'secondary_admin_pw': "",
@@ -52,7 +52,7 @@ def _get_ldap_agent(context, bind=False, secondary=False):
     try:
         agent._author = logged_in_user(context.REQUEST)
     except AttributeError:
-        agent._author = "System user"
+        agent._author = "system_user"
 
     return agent
 

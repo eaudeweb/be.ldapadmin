@@ -19,7 +19,7 @@ from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 from persistent.mapping import PersistentMapping
 from be.ldapadmin import ldap_config
 from be.ldapadmin import query
-from be.ldapadmin.constants import NETWORK_NAME, ADDR_FROM
+from be.ldapadmin.constants import NETWORK_NAME, MAIL_ADDRESS_FROM
 from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import SessionMessages
 from be.ldapadmin.ui_common import TemplateRenderer
@@ -78,7 +78,7 @@ def random_token():
 class PasswordResetTool(SimpleItem):
     meta_type = 'LDAP Password Reset Tool'
     security = ClassSecurityInfo()
-    icon = '++resource++be.ldapadmin-www/eionet_password_reset_tool.gif'
+    icon = '++resource++be.ldapadmin-www/password_reset_tool.gif'
     session_messages = SESSION_MESSAGES
 
     manage_options = (
@@ -109,12 +109,6 @@ class PasswordResetTool(SimpleItem):
         form = REQUEST.form
         new_config = ldap_config.read_form(form, edit=True)
 
-        new_config['legacy_ldap_server'] = form.get('legacy_ldap_server', '')
-        new_config['legacy_admin_dn'] = form.get('legacy_admin_dn', '')
-        new_config['legacy_admin_pw'] = form.get('legacy_admin_pw', '')
-        if not new_config['legacy_admin_pw']:
-            del new_config['legacy_admin_pw']  # don't overwrite
-
         self._config.update(new_config)
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/manage_edit')
 
@@ -139,7 +133,7 @@ class PasswordResetTool(SimpleItem):
         return token
 
     def _send_token_email(self, addr_to, token, user_info):
-        addr_from = ADDR_FROM
+        addr_from = MAIL_ADDRESS_FROM
         email_template = load_template('zpt/pwreset_token_email.zpt')
         expiration_time = datetime.utcnow() + timedelta(days=1)
         options = {

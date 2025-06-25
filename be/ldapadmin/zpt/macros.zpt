@@ -5,10 +5,15 @@
     <tal:block condition="is_authenticated">
         (<tt class="user-id" tal:content="user_info/id" />)
 
-        <a tal:condition="user_info/email"
-           tal:attributes="href string:mailto:${user_info/email}"
-           tal:content="user_info/email"
-           class="user-email"></a>
+        <tal:block define="emails user_info/email"
+            condition="emails">
+          <tal:block repeat="email emails">
+            <a tal:attributes="href string:mailto:${email}"
+               tal:content="email"
+               class="user-email"></a>
+            <tal:block content="string:, " condition="not:repeat/email/end" />
+          </tal:block>
+        </tal:block>
         <br />
 
         <tal:block condition="user_info/phone">
@@ -47,22 +52,12 @@
         </tr>
     </thead>
     <tbody>
-        <!--<tal:block condition="python: not users">
-            <tr>
-                <td colspan="5" align="center">
-                    <strong>
-                        Currently there are no users in role <tt tal:content="python:role_name or '[ROOT]'" />
-                    </strong>
-                </td>
-            </tr>
-        </tal:block>
--->
         <tal:block repeat="user_id python:sorted(users)" condition="users">
         <tal:block define="user_info python:users[user_id]">
             <tr tal:condition="python: users[user_id].get('deleted') and is_authenticated">
                 <td></td>
                 <td><span tal:content="user_info/id" /></td>
-                <td><strong>User no longer exists.</strong></td>
+                <td><strong>Deleted user</strong></td>
                 <td></td>
                 <td></td>
             </tr>
@@ -83,10 +78,15 @@
                 </td>
 
                 <td>
-                    <a tal:condition="user_info/email"
-                    tal:attributes="href string:mailto:${user_info/email}"
-                    tal:content="user_info/email"
-                    class="user-email"></a>
+                  <tal:block define="emails user_info/email"
+                      condition="emails">
+                    <tal:block repeat="email python:emails.split(', ')">
+                      <a tal:attributes="href string:mailto:${email}"
+                         tal:content="email"
+                         class="user-email"></a><tal:block
+                           content="string:, " condition="not:repeat/email/end" />
+                    </tal:block>
+                  </tal:block>
                 </td>
 
                 <td>

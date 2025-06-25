@@ -7,7 +7,7 @@
     }
 </style>
 
-<h2>Add <span tal:replace="common/network_name" /> roles editor</h2>
+<h2>Add LDAP roles editor</h2>
 
 <form action="manage_add_roles_editor" method="post"
       name="add-roles-editor" class="add-roles-editor"

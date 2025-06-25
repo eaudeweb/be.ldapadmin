@@ -9,30 +9,25 @@ import operator
 import os
 import re
 from StringIO import StringIO
-from zope.component import getUtility
-from zope.component.interfaces import ComponentLookupError
-from zope.sendmail.interfaces import IMailDelivery
 from AccessControl import ClassSecurityInfo
 from AccessControl.Permissions import view, view_management_screens
 from AccessControl.unauthorized import Unauthorized
 from App.class_init import InitializeClass
 from App.config import getConfiguration
 import deform
-from deform.widget import SelectWidget
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 from OFS.PropertyManager import PropertyManager
 from OFS.SimpleItem import SimpleItem
 from ldap import NO_SUCH_OBJECT
 from ldap import INVALID_DN_SYNTAX
-from be.ldapadmin.logic_common import _session_pop, _create_plain_message
 from persistent.mapping import PersistentMapping
 import ldap
 import ldap_config
 import xlwt
 from be.ldapadmin.db_agent import UserNotFound, NameAlreadyExists
 from be.ldapadmin.db_agent import OrgRenameError, editable_org_fields
-from be.ldapadmin.constants import NETWORK_NAME, USER_INFO_KEYS
-from be.ldapadmin.countries import get_country, get_country_options
+from be.ldapadmin.constants import USER_INFO_KEYS
+from be.ldapadmin.countries import get_country_options  # , get_country
 from be.ldapadmin.ui_common import extend_crumbs, CommonTemplateLogic
 from be.ldapadmin.ui_common import SessionMessages
 from be.ldapadmin.ui_common import TemplateRenderer
@@ -43,9 +38,6 @@ from be.ldapadmin.schema import user_info_schema
 
 cfg = getConfiguration()
 cfg.environment.update(os.environ)
-
-ADDR_FROM = getattr(cfg, 'environment', {}).get(
-    'ADDR_FROM', 'no-reply@envcoord.health.fgov.be')
 
 log = logging.getLogger('orgs_editor')
 
@@ -93,7 +85,7 @@ def _set_session_message(request, msg_type, msg):
 class OrganisationsEditor(SimpleItem, PropertyManager):
     meta_type = 'LDAP Organisations Editor'
     security = ClassSecurityInfo()
-    icon = '++resource++be.ldapadmin-www/eionet_organisations_editor.gif'
+    icon = '++resource++be.ldapadmin-www/organisations_editor.gif'
     session_messages = SESSION_MESSAGES
     manage_options = (
         {'label': 'Configure', 'action': 'manage_edit'},
@@ -162,7 +154,8 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
             country = countries.get(info['country'])
             if country:
                 orgs.append({'id': org_id,
-                             'name': info['name'],
+                             'name': info['name'] or org_id.title().replace(
+                                 '_', ' '),
                              'country': country['name'],
                              'country_pub_code': country['pub_code']})
         orgs.sort(key=operator.itemgetter('id'))
@@ -180,7 +173,6 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         orgs_by_id = agent.all_organisations()
 
         countries = dict(get_country_options())
-        country = 'all'
 
         orgs = []
         for org_id, info in orgs_by_id.iteritems():
@@ -232,7 +224,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
             org_sheet.write(i + 2, 0, row['id'], style_normal)
             org_sheet.write(i + 2, 1, row['name'], style_normal)
             org_sheet.write(i + 2, 2, row['locality'], style_normal)
-            org_sheet.write(i + 2, 3, row['postal_address'], style_normal)
+            org_sheet.write(i + 2, 3, row['street'], style_normal)
             org_sheet.write(i + 2, 4, row['fax'], style_normal)
             org_sheet.write(i + 2, 5, row['email'], style_normal)
             members = agent.members_in_org(row['id'])   # TODO: optimize
@@ -295,8 +287,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         RESPONSE.setHeader('Pragma', 'public')
         RESPONSE.setHeader('Cache-Control', 'max-age=0')
         RESPONSE.addHeader("content-disposition",
-                           "attachment; filename=%s-organisations.xls" %
-                           country)
+                           "attachment; filename=organisations.xls")
 
         return out
 
@@ -331,7 +322,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         ]
         for i, col in enumerate(cols):
             org_sheet.write(0, i, col, style_header)
-            org_sheet.write(2, i, org_info[col], style_normal)
+            org_sheet.write(2, i, org_info.get(col), style_normal)
 
         org_sheet.col(1).set_width(9000)
         org_sheet.col(2).set_width(5000)
@@ -392,9 +383,11 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
             return REQUEST.RESPONSE.redirect(self.absolute_url())
         agent = self._get_ldap_agent()
         org_info = agent.org_info(org_id)
+        if not org_info['name']:
+            org_info['name'] = org_id.title().replace('_', ' ')
         options = {
             'organisation': org_info,
-            'country': get_country(org_info['country'])['name'],
+            # 'country': get_country(org_info['country'])['name'],
         }
         self._set_breadcrumbs([('%s Organisation' % org_id, '#')])
         return self._render_template('zpt/orgs_view.zpt', **options)
@@ -651,36 +644,6 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
                                ('Members', '#')])
         return self._render_template('zpt/orgs_members.zpt', **options)
 
-    def notify_on_membership_op(self, user_info, org_info, operation):
-        addr_from = ADDR_FROM
-        addr_to = user_info['email']
-
-        if operation == 'approval':
-            email_template = load_template('zpt/org_membership_approved.zpt')
-            subject = "%s: Approved organisation membership" % NETWORK_NAME
-        elif operation == 'rejection':
-            email_template = load_template('zpt/org_membership_rejected.zpt')
-            subject = "%s: Rejected organisation membership" % NETWORK_NAME
-
-        options = {
-            'org_info': org_info,
-            'user_info': user_info,
-            'context': self,
-            'network_name': NETWORK_NAME
-        }
-        message = _create_plain_message(
-            email_template(**options).encode('utf-8'))
-        message['From'] = addr_from
-        message['To'] = user_info['email']
-        message['Subject'] = subject
-
-        try:
-            mailer = getUtility(IMailDelivery, name="Mail")
-            mailer.send(addr_from, [addr_to], message.as_string())
-        except ComponentLookupError:
-            mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
-            mailer.send(addr_from, [addr_to], message)
-
     security.declareProtected(ldap_edit_orgs, 'demo_members')
 
     def demo_members(self, REQUEST):
@@ -829,12 +792,6 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
 
         agent = self._get_ldap_agent(bind=True)
         with agent.new_action():
-            for user_id in user_id_list:
-                old_info = agent.user_info(user_id)
-                self._remove_from_all_orgs(agent, user_id)
-                old_info['organisation'] = org_id
-                agent.set_user_info(user_id, old_info)
-
             agent.add_to_org(org_id, user_id_list)
 
         _set_session_message(REQUEST, 'info',
@@ -871,127 +828,6 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         org_members = agent.members_in_org(org_id)
         return member_id in org_members
 
-    def edit_member(self, REQUEST):
-        """ Update profile of a member of the organisation """
-        user = REQUEST.AUTHENTICATED_USER
-        org_id = REQUEST.form.get('org_id')
-        user_id = REQUEST.form.get('user_id')
-        if not (org_id and user_id):
-            if org_id:
-                _set_session_message(REQUEST, 'error',
-                                     "The user id is mandatory")
-                return REQUEST.RESPONSE.redirect(self.absolute_url() +
-                                                 '/members_html?id=' + org_id)
-            else:
-                _set_session_message(REQUEST, 'error',
-                                     "The organisation id is mandatory")
-                return REQUEST.RESPONSE.redirect(self.absolute_url())
-        if not self.can_edit_members(user, org_id, user_id):
-            _set_session_message(REQUEST, 'error',
-                                 "You are not allowed to edit user %s" %
-                                 user_id)
-            return REQUEST.RESPONSE.redirect(self.absolute_url() +
-                                             '/members_html?id=' + org_id)
-        errors = _session_pop(REQUEST, SESSION_FORM_ERRORS, {})
-        agent = self._get_ldap_agent(bind=True)
-        member = agent.user_info(user_id)
-        # message
-        form_data = _session_pop(REQUEST, SESSION_FORM_DATA, None)
-        if form_data is None:
-            form_data = member
-            form_data['user_id'] = member['uid']
-
-        orgs = agent.all_organisations()
-        orgs = [{'id': k, 'text': v['name'], 'ldap': True} for
-                k, v in orgs.items()]
-        user_orgs = list(agent.user_organisations(user_id))
-        if not user_orgs:
-            org = form_data['organisation']
-            if org:
-                orgs.append({'id': org, 'text': org, 'ldap': False})
-        else:
-            org = user_orgs[0]
-            org_id = agent._org_id(org)
-            form_data['organisation'] = org_id
-        orgs.sort(lambda x, y: cmp(x['text'], y['text']))
-        schema = user_info_edit_schema.clone()
-        choices = [('-', '-')]
-        for org in orgs:
-            if org['ldap']:
-                label = u"%s (%s)" % (org['text'], org['id'])
-            else:
-                label = org['text']
-            choices.append((org['id'], label))
-        widget = SelectWidget(values=choices)
-        schema['organisation'].widget = widget
-
-        options = {'user': member,
-                   'form_data': form_data,
-                   'schema': schema,
-                   'errors': errors,
-                   'org_id': org_id,
-                   }
-        return self._render_template('zpt/orgs_edit_member.zpt', **options)
-
-    def edit_member_action(self, REQUEST):
-        """ view """
-        agent = self._get_ldap_agent()
-        org_id = REQUEST.form['org_id']
-        user_id = REQUEST.form['user_id']
-        user = REQUEST.AUTHENTICATED_USER
-
-        if not self.can_edit_members(user, org_id, user_id):
-            _set_session_message(REQUEST, 'error',
-                                 "You are not allowed to edit user %s" %
-                                 user_id)
-            REQUEST.RESPONSE.redirect(self.absolute_url() +
-                                      '/members_html?id=' + org_id)
-            return None
-
-        user_form = deform.Form(user_info_edit_schema)
-
-        try:
-            new_info = user_form.validate(REQUEST.form.items())
-        except deform.ValidationFailure as e:
-            session = REQUEST.SESSION
-            errors = {}
-            for field_error in e.error.children:
-                errors[field_error.node.name] = field_error.msg
-            session[SESSION_FORM_ERRORS] = errors
-            session[SESSION_FORM_DATA] = dict(REQUEST.form)
-            msg = u"Please correct the errors below and try again."
-            _set_session_message(REQUEST, 'error', msg)
-        else:
-            agent = self._get_ldap_agent(bind=True, secondary=True)
-
-            old_info = agent.user_info(user_id)
-            new_info.update(first_name=old_info['first_name'],
-                            last_name=old_info['last_name'])
-
-            new_org_id = new_info['organisation']
-            old_org_id = old_info['organisation']
-
-            new_org_id_valid = agent.org_exists(new_org_id)
-
-            # make a check if user is changing the organisation
-            with agent.new_action():
-                if new_org_id != old_org_id:
-                    self._remove_from_all_orgs(agent, user_id)
-                    if new_org_id_valid:
-                        self._add_to_org(agent, new_org_id, user_id)
-
-                agent.set_user_info(user_id, new_info)
-            when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            _set_session_message(REQUEST,
-                                 'message',
-                                 "Profile saved (%s)" % when)
-
-            log.info("%s EDITED USER %s as member of %s",
-                     logged_in_user(REQUEST), user_id, new_org_id)
-
-        REQUEST.RESPONSE.redirect('%s/edit_member?user_id=%s&org_id=%s' %
-                                  (self.absolute_url(), user_id, org_id))
-
     def _add_to_org(self, agent, org_id, user_id):
         try:
             agent.add_to_org(org_id, [user_id])
@@ -1003,26 +839,6 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
                 org_agent.add_to_org(org_id, [user_id])
             else:
                 raise
-
-    def _remove_from_all_orgs(self, agent, user_id):
-        orgs = agent.user_organisations(user_id)
-        for org_dn in orgs:
-            org_id = agent._org_id(org_dn)
-            try:
-                agent.remove_from_org(org_id, [user_id])
-            except ldap.NO_SUCH_ATTRIBUTE:  # user is not in org
-                pass
-            except ldap.INSUFFICIENT_ACCESS:
-                ids = self.aq_parent.objectIds(["LDAP Organisations Editor"])
-                if ids:
-                    obj = self.aq_parent[ids[0]]
-                    org_agent = obj._get_ldap_agent(bind=True)
-                    try:
-                        org_agent.remove_from_org(org_id, [user_id])
-                    except ldap.NO_SUCH_ATTRIBUTE:    # user is not in org
-                        pass
-                else:
-                    raise
 
     def get_ldap_user_groups(self, user_id):
         """ """
@@ -1036,7 +852,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
 InitializeClass(OrganisationsEditor)
 
 
-id_re = re.compile(r'^[a-z]{2}_[a-z]+$')
+id_re = re.compile(r'^[a-z]{2}_[a-z_]+$')
 phone_re = re.compile(r'^\+[\d ]+$')
 postal_code_re = re.compile(r'^[a-zA-Z]{2}[a-zA-Z0-9\- ]+$')
 
@@ -1071,20 +887,20 @@ def validate_org_info(org_id, org_info, create_mode=False):
     if not name.strip():
         errors['name'] = [VALIDATION_ERRORS['name']]
 
-    phone = org_info['phone']
+    phone = org_info.get('phone')
     if phone and phone_re.match(phone) is None:
         errors['phone'] = [VALIDATION_ERRORS['phone']]
 
-    fax = org_info['fax']
+    fax = org_info.get('fax')
     if fax and phone_re.match(fax) is None:
         errors['fax'] = [VALIDATION_ERRORS['fax']]
 
-    postal_code = org_info['postal_code']
+    postal_code = org_info.get('postal_code')
     if postal_code and postal_code_re.match(postal_code) is None:
         errors['postal_code'] = [VALIDATION_ERRORS['postal_code']]
 
-    country = org_info['country']
-    if not country.strip():
+    country = org_info.get('country')
+    if country and not country.strip():
         errors['country'] = [VALIDATION_ERRORS['country']]
 
     return errors

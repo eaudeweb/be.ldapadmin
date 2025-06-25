@@ -16,14 +16,22 @@ NETWORK_URL = getattr(cfg, 'environment', {}).get(
     'NETWORK_URL', 'https://envcoord.health.fgov.be')
 BASE_DOMAIN = getattr(cfg, 'environment', {}).get('BASE_DOMAIN',
                                                   'envcoord.health.fgov.be')
-ADDR_FROM = getattr(cfg, 'environment', {}).get(
-    'ADDR_FROM', 'no-reply@envcoord.health.fgov.be')
+MAIL_ADDRESS_FROM = getattr(cfg, 'environment', {}).get(
+    'MAIL_ADDRESS_FROM', 'no-reply@envcoord.health.fgov.be')
 HELPDESK_EMAIL = getattr(cfg, 'environment', {}).get(
     'HELPDESK_EMAIL', 'helpdesk@envcoord.health.fgov.be')
 LDAP_DISK_STORAGE = getattr(cfg, 'environment', {}).get(
     'LDAP_DISK_STORAGE', os.environ.get('LDAP_DISK_STORAGE', ''))
 LDAP_DB_NAME = getattr(cfg, 'environment', {}).get(
     'LDAP_DB_NAME', os.environ.get('LDAP_DB_NAME', ''))
+LDAP_PROTOCOL = getattr(cfg, 'environment', {}).get(
+    'LDAP_PROTOCOL', os.environ.get('PROTOCOL', 'ldap'))
+USERS_SPECIFIC = getattr(cfg, 'environment', {}).get(
+    'USERS_SPECIFIC', os.environ.get('USERS_SPECIFIC', 'IRCusers'))
+ORGS_SPECIFIC = getattr(cfg, 'environment', {}).get(
+    'ORGS_SPECIFIC', os.environ.get('ORGS_SPECIFIC', 'IRCorganisations'))
+SUPPORTS_MAILING = getattr(cfg, 'environment', {}).get(
+    'SUPPORTS_MAILING', os.environ.get('SUPPORTS_MAILING', True))
 
 USER_INFO_KEYS = [
     'status', 'last_name', 'uid', 'full_name', 'id',

@@ -1,5 +1,7 @@
+import re
 import colander
 import phonenumbers
+from be.ldapadmin.logic_common import split_to_list
 
 INVALID_PHONE_MESSAGES = (
     ("Invalid telephone number. It must be written "
@@ -8,7 +10,7 @@ INVALID_PHONE_MESSAGES = (
      "country / area code provided. If you second check and believe "
      "the number is correct, please contact HelpDesk.")
 )
-INVALID_EMAIL = "Invalid email format"
+INVALID_EMAIL = "Invalid email format %s"
 
 NUMBER_FORMAT = phonenumbers.PhoneNumberFormat.INTERNATIONAL
 
@@ -70,9 +72,16 @@ INVALID_URL = "Invalid URL. It must begin with \"http://\" or \"https://\"."
 
 # max length for domain name labels is 63 characters per RFC 1034
 _url_validator = colander.Regex(r'^http[s]?\://', msg=INVALID_URL)
-_email_validator = colander.Regex(
-    r"(?:^|\s)[-a-z-A-Z0-9_.']+@(?:[-a-z-A-Z0-9]+\.)+[a-z-A-Z]{2,63}(?:\s|$)",
-    msg=INVALID_EMAIL)
+
+
+def _email_validator(node, value):
+    if not isinstance(value, list):
+        values = split_to_list(value)
+    pattern = (r"(?:^|\s)[-a-z-A-Z0-9_.']+@(?:[-a-z-A-Z0-9]+\.)+[a-z-A-Z]"
+               r"{2,63}(?:\s|$)")
+    for email in values:
+        if not re.match(pattern, email):
+            raise colander.Invalid(node, INVALID_EMAIL % email)
 
 
 class UserInfoSchema(colander.MappingSchema):
@@ -114,7 +123,8 @@ class UserInfoSchema(colander.MappingSchema):
         PhoneNumber(), missing='', validator=_phone_validator,
         description='Fax number')
     organisation = colander.SchemaNode(
-        colander.String(), description='Organisation')
+        colander.String(),
+        description='Organisation', missing=[])
     department = colander.SchemaNode(
         colander.String(), missing='', description='Department')
 

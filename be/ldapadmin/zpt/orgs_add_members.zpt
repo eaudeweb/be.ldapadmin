@@ -19,10 +19,10 @@
   <ul>
     <li tal:repeat="user_info options/found_users">
       <label>
-        <input type="checkbox" name="user_id:list"
+        <input style="height: 13px !important" type="checkbox" name="user_id:list"
                tal:attributes="value user_info/id"/>
         <tal:block content="user_info/first_name"/> <tal:block content="user_info/last_name"/>
-        (<tt tal:content="user_info/id"></tt>)
+        (<kbd tal:content="user_info/id" />)
       </label>
     </li>
   </ul>

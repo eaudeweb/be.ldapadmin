@@ -12,7 +12,8 @@ import ldap.filter
 from ldap.ldapobject import LDAPObject
 from ldap.resiter import ResultProcessor
 from _backport import wraps
-from be.ldapadmin.constants import BASE_DOMAIN
+from be.ldapadmin.constants import LDAP_PROTOCOL
+from be.ldapadmin.logic_common import split_to_list
 
 log = logging.getLogger(__name__)
 
@@ -88,11 +89,11 @@ OPERATIONAL_SCHEMA = {
 
 LDAP_ORG_SCHEMA = {
     'name': 'o',
-    'name_native': 'physicalDeliveryOfficeName',
+    # 'name_native': 'physicalDeliveryOfficeName',
     'phone': 'telephoneNumber',
     'fax': 'facsimileTelephoneNumber',
     'url': 'labeledURI',
-    'postal_address': 'postalAddress',
+    # 'postal_address': 'postalAddress',
     'street': 'street',
     'po_box': 'postOfficeBox',
     'postal_code': 'postalCode',
@@ -169,7 +170,7 @@ class RoleRenameError(Exception):
     pass
 
 
-editable_user_fields = sorted(set(LDAP_USER_SCHEMA) - set(['full_name']))
+editable_user_fields = sorted(LDAP_USER_SCHEMA)
 editable_org_fields = list(LDAP_ORG_SCHEMA)  # TODO + ['organisation_links']
 
 
@@ -207,7 +208,7 @@ class UsersDB(object):
             'ou=Users,ou=DATA,ou=america,o=IRCusers,dc=CIRCA,dc=local')
         self._org_dn_suffix = config.get(
             'orgs_dn',
-            'ou=environment,ou=america,o=IRCnodes,dc=CIRCA,dc=local')
+            'ou=IRCorganisations,dc=CIRCA,dc=local')
         self._role_dn_suffix = config.get(
             'roles_dn', 'ou=DATA,ou=america,o=IRCroles,dc=CIRCA,dc=local')
         self._bound = False
@@ -222,17 +223,14 @@ class UsersDB(object):
             if info[1] == '389':
                 server = info[0]
         ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
-        conn = StreamingLDAPObject('ldaps://' + server)
+        if LDAP_PROTOCOL == 'ldaps':
+            conn = StreamingLDAPObject('ldaps://' + server)
+        else:
+            conn = ldap.initialize('ldap://' + server)
         conn.protocol_version = ldap.VERSION3
         conn.timeout = LDAP_TIMEOUT
 
-        try:
-            conn.whoami_s()
-        except ldap.SERVER_DOWN:
-            conn = ldap.initialize('ldap://' + server)
-            conn.protocol_version = ldap.VERSION3
-            conn.timeout = LDAP_TIMEOUT
-            conn.whoami_s()
+        conn.whoami_s()
 
         return conn
 
@@ -244,7 +242,7 @@ class UsersDB(object):
 
         dn_start = ''
         for c in range(len(id_bits), 0, -1):
-            dn_start += 'cn=%s,' % '-'.join(id_bits[:c])
+            dn_start += 'ou=%s,' % '-'.join(id_bits[:c])
         return dn_start + self._role_dn_suffix
 
     def _role_id(self, role_dn):
@@ -253,32 +251,32 @@ class UsersDB(object):
         assert role_dn.endswith(',' + self._role_dn_suffix)
         role_dn_start = role_dn[: - (len(self._role_dn_suffix) + 1)]
         dn_bits = role_dn_start.split(',')
-        dn_bits.reverse()
 
+        dn_bits.reverse()
         current_bit = None
         for bit in dn_bits:
-            assert bit.startswith('cn=')
-            bit = bit[len('cn='):]
+            assert bit.startswith('ou=')
+            bit = bit[len('ou='):]
             if current_bit is None:
                 assert '-' not in bit
             else:
                 assert bit.startswith(current_bit + '-')
                 assert '-' not in bit[len(current_bit) + 1:]
             current_bit = bit
-
         return current_bit
 
     def _role_id_no_check(self, role_dn):
         """ Same as _role_id, but no checkups, for faster processing """
-        return re.match(r'cn=([^,]*)', role_dn).groups()[0]
+        return re.match(r'ou=([^,]*)', role_dn).groups()[0]
 
     def _role_id_parent(self, role_dn):
         """ Returns parent role_id from dn, if existing, else None """
-        match = re.match(r'cn=[^,]*,cn=([^,]*),', role_dn)
+        match = re.match(r'ou=[^,]*,ou=([^,]*),', role_dn)
         if match:
-            return match.groups()[0]
-        else:
-            return None
+            parent = match.groups()[0]
+            if parent != 'DATA':
+                return parent
+        return None
 
     def _ancestor_roles_dn(self, role_dn):
         """
@@ -289,9 +287,9 @@ class UsersDB(object):
 
         # Example usage::
         #     >>> self._ancestor_roles_dn(
-        #     ...   "cn=eionet-group,cn=eionet,ou=Roles,o=EIONET,l=Europe")
-        #     ['cn=eionet-group,ou=Roles,o=EIONET,l=Europe',
-        #      'cn=eionet,ou=Roles,o=EIONET,l=Europe']
+        #     ...   "ou=eionet-group,ou=eionet,ou=Roles,o=EIONET,l=Europe")
+        #     ['ou=eionet-group,ou=Roles,o=EIONET,l=Europe',
+        #      'ou=eionet,ou=Roles,o=EIONET,l=Europe']
 
         assert role_dn.endswith(',' + self._role_dn_suffix), "Invalid Role DN"
         role_dn_start = role_dn[: - (len(self._role_dn_suffix) + 1)]
@@ -301,7 +299,7 @@ class UsersDB(object):
         ancestors = []
         accumulator = self._role_dn_suffix
         for bit in dn_bits:
-            assert bit.startswith('cn=')
+            assert bit.startswith('ou=')
             accumulator = bit + "," + accumulator
             ancestors.insert(0, accumulator)
 
@@ -401,10 +399,13 @@ class UsersDB(object):
 
         return out
 
-    def _unpack_org_info(self, dn, attr, invalid=False):
+    def _unpack_org_info(self, dn, attr, invalid=False, inexistent=False):
         if invalid:
             out = {'dn': dn,
                    'id': 'INVALID ORGANISATION %s' % self._org_id(dn)}
+        elif inexistent:
+            out = {'dn': dn,
+                   'id': 'INEXISTENT ORGANISATION %s' % self._org_id(dn)}
         else:
             out = {'dn': dn, 'id': self._org_id(dn)}
         for name, ldap_name in self.org_schema.iteritems():
@@ -424,7 +425,7 @@ class UsersDB(object):
         query_dn = self._role_dn(role_id)
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_ONELEVEL,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('description',)
         )
 
@@ -444,7 +445,7 @@ class UsersDB(object):
         query_dn = self._role_dn(role_id)
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_ONELEVEL,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('description', 'owner', 'permittedSender',
                       'permittedPerson', 'leaderMember', 'alternateLeader')
         )
@@ -458,7 +459,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def filter_roles(
             self, pattern, prefix_dn=None,
-            filterstr='(objectClass=groupOfUniqueNames)', attrlist=()):
+            filterstr='(objectClass=role)', attrlist=()):
         """
         Returns all roles matching `pattern`.
         We can use `prefix_dn` to restrict searching pool and/or filterstr
@@ -512,7 +513,7 @@ class UsersDB(object):
         query_dn = self._role_dn(role_id)
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_BASE,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('uniqueMember',))
 
         out = {'users': [], 'orgs': []}
@@ -549,7 +550,7 @@ class UsersDB(object):
         query_dn = self._role_dn(role_id)
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_SUBTREE,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('uniqueMember',))
 
         preout = {'users': {}, 'orgs': {}}
@@ -611,14 +612,14 @@ class UsersDB(object):
         # first, get all user ids in this role
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_BASE,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('uniqueMember',))
         all_members = member_tuples_from_result(result)
 
         # then get all user ids in sub-roles
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_ONELEVEL,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=('uniqueMember',))
         members_in_sub_roles = member_tuples_from_result(result)
 
@@ -645,7 +646,7 @@ class UsersDB(object):
         assert dn == query_dn
 
         user_info = self._unpack_user_info(dn, attr)
-        # user_info['organisation_links'] = self._search_user_in_orgs(user_id)
+        user_info['orgs'] = self._search_user_in_orgs(user_id)
 
         return user_info
 
@@ -657,7 +658,7 @@ class UsersDB(object):
         """
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organizationGroup)(pendingUniqueMember=%s))',
+            '(&(objectClass=organisation)(pendingUniqueMember=%s))',
             (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
@@ -674,9 +675,11 @@ class UsersDB(object):
             org_id = org_id.encode('utf-8')
         query_dn = self._org_dn(org_id)
         invalid = False
+        inexistent = False
         try:
             result = self.conn.search_s(query_dn, ldap.SCOPE_BASE)
         except ldap.NO_SUCH_OBJECT:
+            inexistent = True
             result = [(query_dn, {})]
         except ldap.INVALID_DN_SYNTAX:
             invalid = True
@@ -685,7 +688,8 @@ class UsersDB(object):
         assert len(result) == 1
         dn, attr = result[0]
         assert dn == query_dn
-        return self._unpack_org_info(dn, attr, invalid=invalid)
+        return self._unpack_org_info(dn, attr, invalid=invalid,
+                                     inexistent=inexistent)
 
     @log_ldap_exceptions
     def role_info(self, role_id):
@@ -792,26 +796,41 @@ class UsersDB(object):
         for name, value in sorted(user_info.iteritems()):
             if value == "":
                 continue
-            attrs.append(
-                (self.user_schema[name], [value.encode(self._encoding)]))
-            # for custom RDN branch
-            attr_dict[attrs[-1][0]] = attrs[-1][1][0]
+            if name == 'email':
+                value = split_to_list(value)
+                attr_dict[self.user_schema['email']] = value
+            else:
+                attrs.append(
+                    (self.user_schema[name], [value.encode(self._encoding)]))
+                # for custom RDN branch
+                attr_dict[attrs[-1][0]] = attrs[-1][1][0]
 
-        email = attr_dict[self.user_schema['email']]
-        if self.search_user_by_email(email):
-            raise EmailAlreadyExists(email)
+        emails = split_to_list(attr_dict[self.user_schema['email']])
+        if self.search_user_by_email(emails):
+            raise EmailAlreadyExists(emails)
+        else:
+            modify_statements = []
+            for email in emails:
+                modify_statements.append(
+                    (ldap.MOD_ADD, 'mail', [email.encode(self._encoding)]))
 
         try:
             if self._user_rdn in ('', 'uid'):
-                result = self.conn.add_s(self._user_dn(new_user_id), attrs)
+                user_dn = self._user_dn(new_user_id)
+                result = self.conn.add_s(user_dn, attrs)
+                email_result = self.conn.modify_s(user_dn,
+                                                  tuple(modify_statements))
             else:  # custom RDN branch
                 result = self.conn.add_s(
                     self._user_dn(new_user_id,
                                   rdn_value=attr_dict[self._user_rdn]), attrs)
+                email_result = self.conn.modify_s(user_dn,
+                                                  tuple(modify_statements))
 
         except ldap.ALREADY_EXISTS:
             raise NameAlreadyExists("User %r already exists" % new_user_id)
         assert result[:2] == (ldap.RES_ADD, [])
+        assert email_result[:2] == (ldap.RES_MODIFY, [])
 
     @log_ldap_exceptions
     def set_user_password(self, user_id, old_pw, new_pw):
@@ -829,7 +848,7 @@ class UsersDB(object):
                                user_info.get('last_name', u""))
         user_info['full_name'] = full_name.strip()
 
-    def _user_info_diff(self, user_id, old_info, new_info, existing_orgs):
+    def _user_info_diff(self, user_id, old_info, new_info):
         def pack(value):
             return [value.encode(self._encoding)]
 
@@ -838,31 +857,49 @@ class UsersDB(object):
         new_info = dict(new_info)
         self._update_full_name(new_info)
 
+        user_emails = old_info.get('email')
+        if user_emails:
+            user_emails = split_to_list(user_emails)
+        else:
+            user_emails = []
+        new_emails = new_info.get('email')
+        if new_emails:
+            new_emails = split_to_list(new_emails)
+        emails_to_add = list(set(new_emails) - set(user_emails))
+        emails_to_remove = list(set(user_emails) - set(new_emails))
+        email_info = [(email, ldap.MOD_DELETE) for email in emails_to_remove]
+        email_info.extend([(email, ldap.MOD_ADD) for email in emails_to_add])
+
         # compute delta
         modify_statements = []
 
         def do(*args):
             modify_statements.append(args)
 
-        for name in editable_user_fields + ['full_name']:
-            old_value = old_info.get(name, u"")
-            new_value = new_info.get(name, u"")
+        for name in editable_user_fields:
             ldap_name = self.user_schema[name]
+            if name == 'email':
+                for value, mod in email_info:
+                    do(mod, ldap_name, pack(value))
+            elif name == 'organisation':
+                # organisations are treated by their own methods
+                # remove_from_org, add_to_org which will be called later
+                continue
+            else:
+                old_value = old_info.get(name, u"")
+                new_value = new_info.get(name, u"")
 
-            if old_value == new_value == '':
-                pass
+                if old_value == new_value == '':
+                    pass
 
-            elif old_value == '':
-                do(ldap.MOD_ADD, ldap_name, pack(new_value))
+                elif old_value == '':
+                    do(ldap.MOD_ADD, ldap_name, pack(new_value))
 
-            elif new_value == '':
-                do(ldap.MOD_DELETE, ldap_name, [])
+                elif new_value == '':
+                    do(ldap.MOD_DELETE, ldap_name, [])
 
-            elif old_value != new_value:
-                do(ldap.MOD_REPLACE, ldap_name, pack(new_value))
-
-#        add_to_orgs = set(new_org_ids) - set(existing_orgs)
-#        remove_from_orgs = set(existing_orgs) - set(new_org_ids)
+                elif old_value != new_value:
+                    do(ldap.MOD_REPLACE, ldap_name, pack(new_value))
 
         # compose output for ldap calls
         out = {}
@@ -875,23 +912,31 @@ class UsersDB(object):
     @log_ldap_exceptions
     def set_user_info(self, user_id, new_info):
         old_info = self.user_info(user_id)
-        existing_orgs = self._search_user_in_orgs(user_id)
-        diff = self._user_info_diff(user_id, old_info, new_info, existing_orgs)
-        if not diff:
+        orgs_with_user = self._search_user_in_orgs(user_id)
+        user_orgs = old_info.get('organisation')
+        if user_orgs:
+            user_orgs = split_to_list(user_orgs)
+        else:
+            user_orgs = []
+        existing_orgs = list(set(orgs_with_user).union(set(user_orgs)))
+        new_orgs = new_info.get('organisation')
+        add_to_orgs = list(set(new_orgs) - set(existing_orgs))
+        remove_from_orgs = list(set(existing_orgs) - set(new_orgs))
+        diff = self._user_info_diff(user_id, old_info, new_info)
+        if not (diff or add_to_orgs or remove_from_orgs):
             return
+        # add/remove users from respective organisations
+        for org in remove_from_orgs:
+            self.remove_from_org(org, [user_id])
+        for org in add_to_orgs:
+            self.add_to_org(org, [user_id])
 
-        # result = self.conn.modify_s(
-        #     self._user_dn(user_id),
-        #     [
-        #         (ldap.MOD_REPLACE, 'employeeType', 'disabled'),
-        #         (ldap.MOD_REPLACE, 'mail', 'disabled@eionet.europa.eu'),
-        #     ]
-        # )
-
+        # make changes on the user object (additional to the ones on the org)
         log.info("Modifying info for user %r", user_id)
         for dn, modify_statements in diff.iteritems():
             result = self.conn.modify_s(dn, tuple(modify_statements))
             assert result[:2] == (ldap.RES_MODIFY, [])
+        return True
 
     def _org_info_diff(self, org_id, old_info, new_info):
         def pack(value):
@@ -917,7 +962,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def user_organisations(self, user_id):
         """ return organisations the user belongs to """
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=organisation)(uniqueMember=%s))'
         user_dn = self._user_dn(user_id)
         filterstr = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result = self.conn.search_s(self._org_dn(None), ldap.SCOPE_SUBTREE,
@@ -937,7 +982,7 @@ class UsersDB(object):
 
     def roles_owner(self, user_id):
         """ return roles where user is owner """
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(owner=%s))'
+        filter_tmpl = '(&(objectClass=role)(owner=%s))'
         user_dn = self._user_dn(user_id)
         filterstr = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result = self.conn.search_s(self._role_dn(None), ldap.SCOPE_SUBTREE,
@@ -1251,9 +1296,8 @@ class UsersDB(object):
         attrs = [
             ('cn', [org_id]),
             ('objectClass', [
-                'top', 'groupOfUniqueNames',
-                'organizationGroup', 'labeledURIObject',
-                'hierarchicalGroup'
+                'top', 'groupOfUniqueNames', 'hierarchicalGroup',
+                'organizationGroup', 'labeledURIObject'
             ]
             ),
             ('uniqueMember', ['']),
@@ -1373,23 +1417,28 @@ class UsersDB(object):
         # record this change in the user's log
         users = [(user_id, str(self._user_dn(user_id)))
                  for user_id in user_id_list]
-        org_dn = self._org_dn(org_id)
 
         for user_id, user_dn in users:
+            # also add the org to the user's `o` property
+            result = self.conn.modify_s(
+                user_dn,
+                ((ldap.MOD_ADD, 'o', [org_id.encode(self._encoding)]),))
+            assert result[:2] == (ldap.RES_MODIFY, [])
             self.add_change_record(user_dn, ADD_TO_ORG,
                                    {'organisation': org_id})
+            org_dn = self._org_dn(org_id)
             self.add_change_record(org_dn, ADDED_MEMBER_TO_ORG,
                                    {'member': user_id})
 
-        changes = (
+        org_changes = (
             (ldap.MOD_ADD, 'uniqueMember', [dn for uid, dn in users]),
         )
 
         if not self.members_in_org(org_id):
-            # we are removing all members; add placeholder value
-            changes += ((ldap.MOD_DELETE, 'uniqueMember', ['']),)
+            # if the org was empty, we need to remove the placeholder value
+            org_changes += ((ldap.MOD_DELETE, 'uniqueMember', ['']),)
 
-        result = self.conn.modify_s(self._org_dn(org_id), changes)
+        result = self.conn.modify_s(self._org_dn(org_id), org_changes)
         assert result[:2] == (ldap.RES_MODIFY, [])
 
     @log_ldap_exceptions
@@ -1397,27 +1446,41 @@ class UsersDB(object):
         assert self._bound, "call `perform_bind` before `remove_from_org`"
         log.info("Removing users %r from organisation %r",
                  user_id_list, org_id)
-
-        # record this change in the user's log
         users = [(user_id, self._user_dn(user_id)) for user_id in user_id_list]
+        org_info = self.org_info(org_id)
         org_dn = self._org_dn(org_id)
+        if not ('INVALID' in org_info['id'] or 'INEXISTENT' in org_info['id']):
+            # record this change in the user's log
+            org_members = self.members_in_org(org_id)
+
+            user_dn_list = [user_dn for (user_id, user_dn) in users if
+                            user_id in org_members]
+            if user_dn_list:
+                changes = ((ldap.MOD_DELETE, 'uniqueMember', user_dn_list), )
+
+                # Check if any member remain, add placeholder value in
+                # case there will be None
+                if not (set(org_members) - set(user_id_list)):
+                    changes = ((ldap.MOD_ADD, 'uniqueMember', ['']),) + changes
+
+                try:
+                    result = self.conn.modify_s(org_dn, changes)
+                    assert result[:2] == (ldap.RES_MODIFY, [])
+                except ldap.NO_SUCH_ATTRIBUTE as e:
+                    if 'no such value' not in e[0]['info']:
+                        raise
+
         for user_id, user_dn in users:
+            # also remove the org from the user's `o` property
+            result = self.conn.modify_s(
+                user_dn,
+                ((ldap.MOD_DELETE, 'o', [org_id.encode(self._encoding)]),))
+            assert result[:2] == (ldap.RES_MODIFY, [])
             self.add_change_record(user_dn, REMOVED_FROM_ORG, {
                 'organisation': org_id,
             })
             self.add_change_record(org_dn, REMOVED_MEMBER_FROM_ORG,
                                    {'member': user_id})
-
-        user_dn_list = [user_dn for (user_id, user_dn) in users]
-        changes = ((ldap.MOD_DELETE, 'uniqueMember', user_dn_list), )
-
-        # Check if any member remain, add placeholder value in
-        # case there will be None
-        if not (set(self.members_in_org(org_id)) - set(user_id_list)):
-            changes = ((ldap.MOD_ADD, 'uniqueMember', ['']),) + changes
-
-        result = self.conn.modify_s(org_dn, changes)
-        assert result[:2] == (ldap.RES_MODIFY, [])
 
     @log_ldap_exceptions
     def rename_org(self, org_id, new_org_id):
@@ -1459,6 +1522,8 @@ class UsersDB(object):
     def delete_org(self, org_id):
         """ Delete the organisation `org_id` """
         assert self._bound, "call `perform_bind` before `delete_org`"
+        # first remove all members
+        self.remove_from_org(org_id, self.members_in_org(org_id))
         log.info("Deleting organisation %r", org_id)
         result = self.conn.delete_s(self._org_dn(org_id))
         assert result[:2] == (ldap.RES_DELETE, [])
@@ -1475,11 +1540,9 @@ class UsersDB(object):
         attrs = [
             ('cn', [role_id]),
             ('objectClass',
-             ['top', 'groupOfUniqueNames', 'mailListGroup',
-              'hierarchicalGroup']),
+             ['top', 'role', 'organizationalUnit', 'mailListGroup']),
             ('ou', [role_id.split('-')[-1]]),
             ('uniqueMember', ['']),
-            ('permittedSender', ['owners', '*@%s' % BASE_DOMAIN])
         ]
         if description:
             attrs.append(('description', [description.encode(self._encoding)]))
@@ -1653,7 +1716,7 @@ class UsersDB(object):
         role_dn = self._role_dn(role_id)
         result = self.conn.search_s(
             role_dn, ldap.SCOPE_SUBTREE,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=())
 
         sub_roles = []
@@ -1681,17 +1744,22 @@ class UsersDB(object):
     @log_ldap_exceptions
     def search_user_by_email(self, email, no_disabled=False):
         disabled_filter = no_disabled and "(!(employeeType=*disabled*))" or ''
+        email = split_to_list(email)
 
-        try:
-            query = email.encode(self._encoding)
-        except UnicodeDecodeError:
-            # the email cannot be encoded so is likely not compliant
-            return []
-        pattern = '(&(objectClass=person){0}(mail=%s))'.format(disabled_filter)
-        query_filter = ldap.filter.filter_format(pattern, (query,))
+        result = []
+        for mail in email:
+            try:
+                query = mail.encode(self._encoding)
+            except UnicodeDecodeError:
+                # the email cannot be encoded so is likely not compliant
+                return []
+            pattern = '(&(objectClass=person){0}(mail=%s))'.format(
+                disabled_filter)
+            query_filter = ldap.filter.filter_format(pattern, (query,))
 
-        result = self.conn.search_s(self._user_dn_suffix, ldap.SCOPE_ONELEVEL,
-                                    filterstr=query_filter)
+            result.extend(
+                self.conn.search_s(self._user_dn_suffix, ldap.SCOPE_ONELEVEL,
+                                   filterstr=query_filter))
 
         return [self._unpack_user_info(dn, attr) for (dn, attr) in result]
 
@@ -1747,7 +1815,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def search_org(self, name):
         query = name.lower().encode(self._encoding)
-        pattern = '(&(objectClass=organizationGroup)(|(cn=*%s*)(o=*%s*)))'
+        pattern = '(&(objectClass=organisation)(|(cn=*%s*)(o=*%s*)))'
         query_filter = ldap.filter.filter_format(pattern, (query, query))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
@@ -1848,14 +1916,14 @@ class UsersDB(object):
         """Add user_id as owner to role_id and sub-roles, return roles' ids"""
         query_dn = self._role_dn(role_id)
         user_dn = self._user_dn(user_id)
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(owner=%s))'
+        filter_tmpl = '(&(objectClass=role)(owner=%s))'
         filter_str = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result_existing = self.conn.search_s(query_dn, ldap.SCOPE_SUBTREE,
                                              filterstr=filter_str, attrlist=())
         existing = map(lambda x: x[0], list(result_existing))
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_SUBTREE,
-            filterstr='(objectClass=groupOfUniqueNames)',
+            filterstr='(objectClass=role)',
             attrlist=())
         updated = []
         for role_dn, attr in result:
@@ -1885,7 +1953,7 @@ class UsersDB(object):
         """Remove user_id from role_id and all sub-roles, return roles' ids"""
         query_dn = self._role_dn(role_id)
         user_dn = self._user_dn(user_id)
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(owner=%s))'
+        filter_tmpl = '(&(objectClass=role)(owner=%s))'
         filter_str = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result_existing = self.conn.search_s(query_dn, ldap.SCOPE_SUBTREE,
                                              filterstr=filter_str, attrlist=())
@@ -2068,11 +2136,12 @@ class UsersDB(object):
             # x = ag._sub_roles_with_member(ag._role_dn('a-b'),
             # ...                           ag._user_dn('user_in_c'))
             # list(x)
-            ['cn=a-b,cn=a,ou=Roles,o=EIONET,l=Europe',
-             'cn=a-b-c,cn=a-b,cn=a,ou=Roles,o=EIONET,l=Europe']
+            ['ou=a-b,ou=a,ou=DATA,ou=america,o=IRCroles,dc=CIRCA,dc=local',
+             'ou=a-b-c,ou=a-b,ou=a,ou=DATA,ou=america,o=IRCroles,dc=CIRCA,'
+             'dc=local']
 
         """
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=role)(uniqueMember=%s))'
         filterstr = ldap.filter.filter_format(filter_tmpl, (member_dn,))
         result = self.conn.search_s(role_dn, ldap.SCOPE_SUBTREE,
                                     filterstr=filterstr, attrlist=())
@@ -2088,9 +2157,10 @@ class UsersDB(object):
         #     >>> x = ag._imediate_sub_roles_with_member(ag._role_dn('a-b'),
         #     ...         ag._user_dn('user_in_d'))
         #     >>> list(x)
-        #     ['cn=a-b-c,cn=a-b,cn=a,ou=Roles,o=EIONET,l=Europe']
+        #     ['dn=a-b-c,dn=a-b,dn=a,ou=DATA,ou=america,o=IRCroles,dc=CIRCA,'
+        #      'dc=local']
 
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=role)(uniqueMember=%s))'
         filterstr = ldap.filter.filter_format(filter_tmpl, (member_dn,))
         result = self.conn.search_s(role_dn, ldap.SCOPE_ONELEVEL,
                                     filterstr=filterstr, attrlist=())
@@ -2102,9 +2172,12 @@ class UsersDB(object):
         log.info("Removing uniqueMember %r from %r", member_dn, role_dn)
 
         def _remove():
-            self.conn.modify_s(role_dn, (
-                (ldap.MOD_DELETE, 'uniqueMember', [member_dn]),
-            ))
+            try:
+                self.conn.modify_s(role_dn, (
+                    (ldap.MOD_DELETE, 'uniqueMember', [member_dn]),
+                ))
+            except ldap.NO_SUCH_ATTRIBUTE:
+                pass  # most likely caused by inexisting organisations
             try:
                 self.conn.modify_s(role_dn, (
                     (ldap.MOD_DELETE, 'leaderMember', [member_dn]),
@@ -2182,7 +2255,7 @@ class UsersDB(object):
         and from ancestor roles that do not have sub-roles containing
         member_id.
 
-        Since we use the `groupOfUniqueNames` and `uniqueMember` classes, we
+        Since we use the `role` and `uniqueMember` classes, we
         need to do some juggling with a blank placeholder member:
           * step 1: try to add '' as member, so the role is never empty
           * step 2: remove our member as requested
@@ -2224,7 +2297,7 @@ class UsersDB(object):
         """
         member_dn = self._member_dn(member_type, member_id)
         role_dn = self._role_dn(None)
-        filter_tmpl = '(&(objectClass=groupOfUniqueNames)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=role)(uniqueMember=%s))'
         filterstr = ldap.filter.filter_format(filter_tmpl, (member_dn,))
         results = self.conn.search_s(role_dn, ldap.SCOPE_SUBTREE,
                                      filterstr=filterstr, attrlist=attrlist)
@@ -2234,7 +2307,7 @@ class UsersDB(object):
     def _search_user_in_orgs(self, user_id):
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organizationGroup)(uniqueMember=%s))', (user_dn,))
+            '(&(objectClass=organisation)(uniqueMember=%s))', (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query_filter, attrlist=())
@@ -2243,7 +2316,7 @@ class UsersDB(object):
     def orgs_for_user(self, user_id):
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organizationGroup)(uniqueMember=%s))', (user_dn,))
+            '(&(objectClass=organisation)(uniqueMember=%s))', (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query_filter, attrlist=('o',))
@@ -2261,7 +2334,7 @@ class UsersDB(object):
                       'name_native': attr.get('physicalDeliveryOfficeName',
                                               [u""])[0].decode(self._encoding),
                       'country':
-                      attr.get('c', ['int']   # needs to be set to int,
+                      attr.get('c', ['be']   # needs to be set to int,
                                # otherwise org doesn't
                                # show up
                                )[0]})
@@ -2282,7 +2355,7 @@ class UsersDB(object):
                     self.conn.search_s(
                         role_dn,
                         ldap.SCOPE_ONELEVEL,
-                        filterstr='(objectClass=groupOfUniqueNames)',
+                        filterstr='(objectClass=role)',
                         attrlist=[])
                     ]
 

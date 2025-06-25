@@ -17,6 +17,7 @@ from Products.Five.browser import BrowserView
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 from App.class_init import InitializeClass
 from App.config import getConfiguration
+from AccessControl import getSecurityManager
 from AccessControl.Permissions import view, view_management_screens
 from AccessControl import ClassSecurityInfo, Unauthorized
 from lxml.builder import E
@@ -46,7 +47,7 @@ except ImportError:
 cfg = getConfiguration()
 cfg.environment.update(os.environ)
 ROLES_DOMAIN = getattr(cfg, 'environment', {}).get(
-    'ROLES_DOMAIN', 'roles.envcoord.health.fgov.be')
+    'ROLES_DOMAIN', 'envcoord.health.fgov.be')
 
 log = logging.getLogger('roles_editor')
 
@@ -102,12 +103,10 @@ def filter_roles(agent, pattern):
     out = {}
     for (role_id, attr) in agent.filter_roles(pattern,
                                               attrlist=('description',)):
-        agent.members_in_role(role_id)  # TODO: unused
         # TODO catch individual errors when showing users
         out[role_id] = {
             'users': role_members(agent, role_id)['users'],
-            'name': (attr.get('description') or
-                     [role_id])[0].decode(agent._encoding),
+            'name': get_role_name(agent, role_id),
         }
 
     return out
@@ -253,7 +252,7 @@ def role_members(agent, role_id, subroles=False, filter_date=None):
 class RolesEditor(Folder):
     meta_type = 'LDAP Roles Editor'
     security = ClassSecurityInfo()
-    icon = '++resource++be.ldapadmin-www/eionet_roles_editor.gif'
+    icon = '++resource++be.ldapadmin-www/roles_editor.gif'
     session_messages = SESSION_MESSAGES
 
     meta_types = (
@@ -346,16 +345,6 @@ class RolesEditor(Folder):
 
         all_roles = [role_id] + subrole_ids
         locations = {}
-        # locations is a dict like:
-        # {
-        # 'environment-group': [[('Viewer',
-        #  {'is_site': True,
-        #   'ob': <GroupwareSite at /site-id>, 'path': ''})],
-        #  [('Contributor',
-        #   {'is_site': True,
-        #    'ob': <GroupwareSite at /01-cciep>,
-        #            'path': ''})],
-        # }
 
         for gsite in parent.objectValues("Groupware site"):
             has_groupware = True
@@ -371,12 +360,27 @@ class RolesEditor(Folder):
             uid = agent._user_id(user_dn)
             return agent.user_info(uid)
 
+        role_infos = agent.role_infos_in_role(role_id)
+        # restrict role view to the roles the user is member of if
+        # not a manager
+        if not self.checkPermissionViewManagementScreens():
+            user_roles = agent.list_member_roles(
+                'user', self.REQUEST.AUTHENTICATED_USER.getId())
+            if not user_roles:
+                raise Unauthorized
+            elif role_id and role_id not in user_roles:
+                raise Unauthorized
+            else:
+                roles = list(role_infos.keys())
+                for role in roles:
+                    if role not in user_roles:
+                        del(role_infos[role])
         options = {
             'roles_domain': ROLES_DOMAIN,
             'role_id': role_id,
             'role_name': get_role_name(agent, role_id),
             'role_info': role_info,
-            'role_infos': agent.role_infos_in_role(role_id),
+            'role_infos': role_infos,
             'role_members': role_members(agent, role_id),
             'role_owners': role_owners,
             'permitted_persons': persons,
@@ -634,7 +638,11 @@ class RolesEditor(Folder):
         arguments have arbitrary number
 
         """
-        if user.name == 'Anonymous User':
+        try:
+            uid = user._id
+        except AttributeError:
+            uid = user.name
+        if uid == 'Anonymous User':
             return False
         if self.can_edit_roles(user):
             return True
@@ -654,7 +662,11 @@ class RolesEditor(Folder):
         or any subroles.
 
         """
-        if user.name == 'Anonymous User':
+        try:
+            uid = user._id
+        except AttributeError:
+            uid = user.name
+        if uid == 'Anonymous User':
             return False
         if self.can_edit_roles(user):
             return True
@@ -697,9 +709,9 @@ class RolesEditor(Folder):
         if not slug:
             raise RoleCreationError(["Role name is required."])
         for ch in slug:
-            if ch not in (ascii_lowercase + digits):
-                msg = ("Invalid Role ID, it must contain only lowercase "
-                       "latin letters and digits.")
+            if ch not in (ascii_lowercase + digits + '_'):
+                msg = ("Invalid Role ID, it may contain only lowercase latin "
+                       "letters, digits and underscores.")
                 if ch == '-':
                     msg += (" Only input the subrole extension, not the "
                             "complete id that contains dashes ('-').")
@@ -1304,6 +1316,10 @@ class RolesEditor(Folder):
         crumbs_html = self.aq_parent.breadcrumbtrail(self.REQUEST)
         extra_crumbs = getattr(self.REQUEST, '_roles_editor_crumbs', [])
         return extend_crumbs(crumbs_html, self.absolute_url(), extra_crumbs)
+
+    def checkPermissionViewManagementScreens(self):
+        return getSecurityManager().checkPermission(view_management_screens,
+                                                    self)
 
 
 InitializeClass(RolesEditor)

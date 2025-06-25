@@ -55,7 +55,10 @@ def load_template(name, context=None, _memo={}):
     return _memo[name]
 
 
-# def load_template(name, _memo={}):
-#    if name not in _memo:
-#        _memo[name] = PageTemplateFile(name, globals())
-#    return _memo[name]
+def split_to_list(value):
+    if isinstance(value, basestring):
+        value = value.replace(',', '\n').splitlines()
+        value = [val.strip() for val in value]
+    if not isinstance(value, list):
+        raise NotImplementedError
+    return value

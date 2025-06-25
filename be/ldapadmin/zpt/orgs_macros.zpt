@@ -26,11 +26,11 @@
                tal:attributes="value form_data/name|string:" class="text-input" /></td>
   </tr>
 
-  <tr>
+<!--  <tr>
     <td><label for="edit-name">Name in national language:</label></td>
     <td><input id="edit-name" type="text" name="name_native:utf8:ustring" size="50"
                tal:attributes="value form_data/name_native|string:" class="text-input" /></td>
-  </tr>
+  </tr>-->
 
   <tr>
     <td><label for="edit-email">Email:</label></td>
@@ -113,13 +113,13 @@
     </td>
   </tr>
 
-  <tr>
+  <!--<tr>
     <td><label for="edit-address">Full address:</label></td>
     <td><textarea id="edit-address" name="postal_address:utf8:ustring"
                   class="large"
                   rows="6" cols="30"
                   tal:content="form_data/postal_address|string:"></textarea></td>
-  </tr>
+  </tr>-->
 
 </tal:block>
 </metal:block>

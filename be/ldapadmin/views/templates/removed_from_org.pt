@@ -1,2 +1,7 @@
-<div tal:content="view/organisation" />
-
+<ul class="no-fuss">
+  <li tal:repeat="org view/organisation">
+    <a tal:attributes="href string:/organisations/organisation?id=${org/id}" tal:content="org/name" />
+  </li>
+  <li tal:condition="not:view/organisation"
+      tal:repeat="org view/organisation_id" tal:content="string:${org} (deleted in the mean time)" />
+</ul>

@@ -3,19 +3,26 @@
 import json
 import logging
 from datetime import datetime, timedelta
-from zope.component import getMultiAdapter
+from email.mime.text import MIMEText
+from zope.component import getMultiAdapter, getUtility
+from zope.component.interfaces import ComponentLookupError
+from zope.sendmail.interfaces import IMailDelivery
 from AccessControl import ClassSecurityInfo  # , Unauthorized
-from AccessControl.Permissions import view_management_screens
-from Acquisition import Implicit
+from AccessControl.Permissions import view, view_management_screens
+from AccessControl.unauthorized import Unauthorized
 from DateTime import DateTime
+from image_processor import scale_to
 from OFS.SimpleItem import SimpleItem
 from OFS.PropertyManager import PropertyManager
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 from persistent.mapping import PersistentMapping
 from zExceptions import NotFound
+from ldap import CONSTRAINT_VIOLATION, NO_SUCH_OBJECT, SCOPE_BASE
+from be.ldapadmin.constants import NETWORK_NAME, MAIL_ADDRESS_FROM
 from be.ldapadmin import ldap_config
-from be.ldapadmin.constants import NETWORK_NAME
-from be.ldapadmin.logic_common import _is_authenticated, load_template
+from be.ldapadmin.logic_common import _is_authenticated, logged_in_user
+from be.ldapadmin.logic_common import load_template, split_to_list
+from be.ldapadmin.ui_common import TemplateRenderer, CommonTemplateLogic
 
 ldap_edit_users = 'LDAP edit users'
 
@@ -25,6 +32,9 @@ manage_add_userdetails_html = PageTemplateFile(
     'zpt/userdetails/user_manage_add', globals())
 manage_add_userdetails_html.ldap_config_edit_macro = ldap_config.edit_macro
 manage_add_userdetails_html.config_defaults = lambda: ldap_config.defaults
+
+WIDTH = 128
+HEIGHT = 192
 
 
 def manage_add_userdetails(parent, id, REQUEST=None):
@@ -43,75 +53,31 @@ def manage_add_userdetails(parent, id, REQUEST=None):
 zope2_wrapper = PageTemplateFile('zpt/zope2_wrapper.zpt', globals())
 
 
-class TemplateRenderer(Implicit):
-    def __init__(self, common_factory=lambda ctx: {}):
-        self.common_factory = common_factory
-
-    def render(self, name, **options):
-        context = self.aq_parent
-        template = load_template(name)
-        namespace = template.pt_getContext((), options)
-        namespace['common'] = self.common_factory(context)
-        return template.pt_render(namespace)
-
-    def wrap(self, body_html):
-        context = self.aq_parent
-        zope2_tmpl = zope2_wrapper.__of__(context)
-
-        # Naaya groupware integration. If present, use the standard template
-        # of the current site
-        macro = self.aq_parent.restrictedTraverse('/').get('gw_macro')
-        if macro:
-            try:
-                layout = self.aq_parent.getLayoutTool().getCurrentSkin()
-                main_template = layout.getTemplateById('standard_template')
-            except Exception:
-                main_template = self.aq_parent.restrictedTraverse(
-                    'standard_template.pt')
-        else:
-            main_template = self.aq_parent.restrictedTraverse(
-                'standard_template.pt')
-        main_page_macro = main_template.macros['page']
-        return zope2_tmpl(main_page_macro=main_page_macro, body_html=body_html)
-
-    def __call__(self, name, **options):
-        return self.wrap(self.render(name, **options))
+SESSION_MESSAGES = 'be.ldapadmin.messages'
 
 
-class CommonTemplateLogic(object):
-    def __init__(self, context):
-        self.context = context
+def _get_session_messages(request):
+    session = request.SESSION
+    if SESSION_MESSAGES in session.keys():
+        msgs = dict(session[SESSION_MESSAGES])
+        del session[SESSION_MESSAGES]
+    else:
+        msgs = {}
+    return msgs
 
-    def _get_request(self):
-        return self.context.REQUEST
 
-    def base_url(self):
-        return self.context.absolute_url()
-
-    def portal_url(self):
-        return self.context.restrictedTraverse("/").absolute_url()
-
-    def is_authenticated(self):
-        return _is_authenticated(self._get_request())
-
-    def can_edit_users(self):
-        user = self.context.REQUEST.AUTHENTICATED_USER
-        return bool(user.has_permission(ldap_edit_users, self.context))
-
-    @property
-    def macros(self):
-        return load_template('zpt/macros.zpt').macros
-
-    @property
-    def network_name(self):
-        """ E.g. EIONET, SINAnet etc. """
-        return NETWORK_NAME
+def _set_session_message(request, msg_type, msg):
+    session = request.SESSION
+    if SESSION_MESSAGES not in session.keys():
+        session[SESSION_MESSAGES] = PersistentMapping()
+    # TODO: allow for more than one message of each type
+    session[SESSION_MESSAGES][msg_type] = msg
 
 
 class UserDetails(SimpleItem):
     meta_type = 'LDAP User Details'
     security = ClassSecurityInfo()
-    icon = '++resource++be.userseditor-www/users_editor.gif'
+    icon = '++resource++be.ldapadmin-www/users_editor.gif'
 
     _render_template = TemplateRenderer(CommonTemplateLogic)
 
@@ -153,20 +119,34 @@ class UserDetails(SimpleItem):
                                                     uid,
                                                     ('description',)))
         roles = []
+        orgs = []
         for (role_id, attrs) in ldap_roles:
             roles.append((role_id,
                           attrs.get('description', ('', ))[0].decode('utf8')))
         user = agent.user_info(uid)
+        user['email'] = split_to_list(user['email'])
         user['jpegPhoto'] = agent.get_profile_picture(uid)
         user['certificate'] = agent.get_certificate(uid)
-        if user['organisation']:
-            org_info = agent.org_info(user['organisation'])
-            org_id = org_info.get('id')
-            if 'INVALID' in org_id:
-                user['organisation'] = org_id.decode('utf8')
-            user['organisation_title'] = org_info['name']
+        # user['organisation'] is a CSV string with what the user has in the
+        # `o` property, while user['orgs'] is a list of orgasations that have
+        # current user as member. Both shuld in theory be the same, but
+        # some users still have older orgs, from the free text field period.
+        user_orgs = user['organisation']
+        if user_orgs:
+            user_orgs = split_to_list(user_orgs)
         else:
-            user['organisation_title'] = ''
+            user_orgs = []
+        orgs_with_user = user['orgs']
+
+        for org in set(user_orgs).union(set(orgs_with_user)):
+            org_info = agent.org_info(org)
+            org_id = org_info.get('id')
+            if 'INVALID' in org_id or 'INEXISTENT' in org_id:
+                orgs.append((org, ''))
+            else:
+                name = org_info['name'].strip() or org_id.title().replace(
+                    '_', ' ')
+                orgs.append((org_id, name))
         pwdChangedTime = user['pwdChangedTime']
         if pwdChangedTime:
             pwdChangedTime = datetime.strptime(pwdChangedTime, '%Y%m%d%H%M%SZ')
@@ -176,15 +156,19 @@ class UserDetails(SimpleItem):
         else:
             user['pwdChanged'] = ''
             user['pwdExpired'] = True
-        return user, roles
+        return user, roles, orgs
 
     security.declarePublic("index_html")
 
     def index_html(self, REQUEST):
         """ """
+        is_auth = _is_authenticated(REQUEST)
         uid = REQUEST.form.get('uid')
+        if not uid and is_auth:
+            uid = logged_in_user(REQUEST)
         if not uid:
-            # a missing uid can only mean this page is called by accident
+            # a missing uid while unauthenticated can only mean this page
+            # is called by accident
             return
         date_for_roles = REQUEST.form.get('date_for_roles')
 
@@ -194,9 +178,8 @@ class UserDetails(SimpleItem):
             multi = json.dumps({'users': uid.split(",")})
         else:
             multi = None
-            user, roles = self._prepare_user_page(uid)
+            user, roles, orgs = self._prepare_user_page(uid)
 
-        is_auth = _is_authenticated(REQUEST)
         # we can only connect to ldap with bind=True if we have an
         # authenticated user
         agent = self._get_ldap_agent(bind=is_auth)
@@ -274,7 +257,7 @@ class UserDetails(SimpleItem):
 
         return self._render_template(
             "zpt/userdetails/index.zpt", context=self,
-            filtered_roles=filtered_roles, user=user, roles=roles,
+            filtered_roles=filtered_roles, user=user, roles=roles, orgs=orgs,
             removed_roles=removed_roles, multi=multi, log_entries=output)
 
     security.declarePublic("simple_profile")
@@ -282,10 +265,10 @@ class UserDetails(SimpleItem):
     def simple_profile(self, REQUEST):
         """ """
         uid = REQUEST.form.get('uid')
-        user, roles = self._prepare_user_page(uid)
+        user, roles, orgs = self._prepare_user_page(uid)
         tr = TemplateRenderer(CommonTemplateLogic)
         return tr.__of__(self).render("zpt/userdetails/simple.zpt",
-                                      user=user, roles=roles)
+                                      user=user, roles=roles, orgs=orgs)
 
     security.declarePublic("userphoto_jpeg")
 
@@ -315,3 +298,181 @@ class UserDetails(SimpleItem):
 
         agent = self._get_ldap_agent()
         return agent.orgs_for_user(user_id)
+
+    security.declareProtected(view, 'can_edit_users')
+
+    def can_edit_users(self):
+        user = self.REQUEST.AUTHENTICATED_USER
+        return bool(user.has_permission(ldap_edit_users, self))
+
+    security.declareProtected(view, 'change_password_html')
+
+    def change_password_html(self, REQUEST):
+        """ view """
+        if not _is_authenticated(REQUEST):
+            raise Unauthorized
+
+        return self._render_template('zpt/change_password.zpt',
+                                     user_id=logged_in_user(REQUEST),
+                                     base_url=self.absolute_url(),
+                                     **_get_session_messages(REQUEST))
+
+    security.declareProtected(view, 'change_password')
+
+    def change_password(self, REQUEST):
+        """ view """
+        form = REQUEST.form
+        user_id = logged_in_user(REQUEST)
+        agent = self._get_ldap_agent(bind=True)
+        user_info = agent.user_info(user_id)
+
+        if form['new_password'] != form['new_password_confirm']:
+            _set_session_message(REQUEST, 'error',
+                                 "New passwords do not match")
+            return REQUEST.RESPONSE.redirect(self.absolute_url() +
+                                             '/change_password_html')
+
+        try:
+            agent.set_user_password(user_id, form['old_password'],
+                                    form['new_password'])
+
+            options = {
+                'first_name': user_info['first_name'],
+                'password': form['new_password'],
+                'network_name': NETWORK_NAME,
+            }
+
+            email_template = load_template('zpt/email_change_password.zpt')
+            email_password_body = email_template.pt_render(options)
+            addr_to = user_info['email']
+
+            message = MIMEText(email_password_body)
+            message['From'] = MAIL_ADDRESS_FROM
+            message['To'] = addr_to
+            message['Subject'] = "%s Account - New password" % NETWORK_NAME
+
+            try:
+                mailer = getUtility(IMailDelivery, name="Mail")
+                mailer.send(MAIL_ADDRESS_FROM, split_to_list(addr_to),
+                            message.as_string())
+            except ComponentLookupError:
+                mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
+                mailer.send(MAIL_ADDRESS_FROM, split_to_list(addr_to), message)
+
+        except ValueError:
+            _set_session_message(REQUEST, 'error', "Old password is wrong")
+            return REQUEST.RESPONSE.redirect(self.absolute_url() +
+                                             '/change_password_html')
+        except CONSTRAINT_VIOLATION as e:
+            if e.message['info'] in [
+                    'Password fails quality checking policy']:
+                try:
+                    defaultppolicy = agent.conn.search_s(
+                        'cn=defaultppolicy,ou=pwpolicies,o=EIONET,'
+                        'l=Europe',
+                        SCOPE_BASE)
+                    p_length = defaultppolicy[0][1]['pwdMinLength'][0]
+                    message = '%s (min. %s characters)' % (
+                        e.message['info'], p_length)
+                except NO_SUCH_OBJECT:
+                    message = e.message['info']
+            else:
+                message = e.message['info']
+            _set_session_message(REQUEST, 'error', message)
+            return REQUEST.RESPONSE.redirect(self.absolute_url() +
+                                             '/change_password_html')
+
+        REQUEST.RESPONSE.redirect(self.absolute_url() +
+                                  '/password_changed_html')
+
+    security.declareProtected(view, 'password_changed_html')
+
+    def password_changed_html(self, REQUEST):
+        """ view """
+        options = {
+            'messages': [
+                "Password changed successfully. You must log in again."],
+            'base_url': self.absolute_url(),
+        }
+        return self._render_template('zpt/result_page.zpt', **options)
+
+    security.declareProtected(view, 'profile_picture_html')
+
+    def profile_picture_html(self, REQUEST):
+        """ view """
+        if not _is_authenticated(REQUEST):
+            raise Unauthorized
+        user_id = logged_in_user(REQUEST)
+        agent = self._get_ldap_agent(bind=True)
+
+        if agent.get_profile_picture(user_id):
+            has_image = True
+        else:
+            has_image = False
+        return self._render_template('zpt/profile_picture.zpt',
+                                     user_id=logged_in_user(REQUEST),
+                                     base_url=self.absolute_url(),
+                                     has_current_image=has_image,
+                                     here=self,
+                                     **_get_session_messages(REQUEST))
+
+    security.declareProtected(view, 'profile_picture')
+
+    def profile_picture(self, REQUEST):
+        """ view """
+        if not _is_authenticated(REQUEST):
+            raise Unauthorized
+        image_file = REQUEST.form.get('image_file', None)
+        if image_file:
+            picture_data = image_file.read()
+            user_id = logged_in_user(REQUEST)
+            agent = self._get_ldap_agent(bind=True)
+            try:
+                color = (255, 255, 255)
+                picture_data = scale_to(picture_data, WIDTH, HEIGHT, color)
+                success = agent.set_user_picture(user_id, picture_data)
+            except ValueError:
+                _set_session_message(REQUEST, 'error',
+                                     "Error updating picture")
+                return REQUEST.RESPONSE.redirect(self.absolute_url() +
+                                                 '/profile_picture_html')
+            if success:
+                success_text = "That's a beautiful picture."
+                _set_session_message(REQUEST, 'message', success_text)
+            else:
+                _set_session_message(REQUEST, 'error',
+                                     "Error updating picture.")
+        else:
+            _set_session_message(REQUEST, 'error',
+                                 "You must provide a JPG file.")
+        return REQUEST.RESPONSE.redirect(self.absolute_url() +
+                                         '/profile_picture_html')
+
+    security.declareProtected(view, 'profile_picture_jpg')
+
+    def profile_picture_jpg(self, REQUEST):
+        """
+        Returns jpeg picture data for logged-in user.
+        Assumes picture is available in LDAP.
+
+        """
+        user_id = logged_in_user(REQUEST)
+        agent = self._get_ldap_agent(bind=True)
+        photo = agent.get_profile_picture(user_id)
+        REQUEST.RESPONSE.setHeader('Content-Type', 'image/jpeg')
+        return photo
+
+    security.declareProtected(view, 'remove_picture')
+
+    def remove_picture(self, REQUEST):
+        """ Removes existing profile picture for loggedin user """
+        user_id = logged_in_user(REQUEST)
+        agent = self._get_ldap_agent(bind=True)
+        try:
+            agent.set_user_picture(user_id, None)
+        except Exception:
+            _set_session_message(REQUEST, 'error', "Something went wrong.")
+        else:
+            _set_session_message(REQUEST, 'message', "No image for you.")
+        return REQUEST.RESPONSE.redirect(self.absolute_url() +
+                                         '/profile_picture_html')

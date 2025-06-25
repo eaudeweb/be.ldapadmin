@@ -1,4 +1,4 @@
-This is an automated message to help you reset the <span tal:replace="options/network_name" /> account password
+This is an automated message to help you reset the Environment account password
 for user <tal:block content="options/user_info/id"/>. It was sent by the page at
 <tal:block content="options/context/absolute_url"/> and it will expire at <span tal:replace="options/expiration_time" /> GMT.
 If you do not need to reset your password, you may safely ignore this message.

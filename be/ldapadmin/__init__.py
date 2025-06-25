@@ -22,7 +22,6 @@ def initialize(context):
     import dashboard
     import logger
     import countries
-    import users_editor
     import userdetails
 
     countries.load_countries()
@@ -61,14 +60,6 @@ def initialize(context):
          dashboard.manage_add_ldap_admin_html),
         ('manage_add_ldap_admin', dashboard.manage_add_ldap_admin),
     ))
-
-    # Init for userseditor
-    constructors = (
-        ('manage_addUsersEditor_html',
-         users_editor.manage_addUsersEditor_html),
-        ('manage_addUsersEditor', users_editor.manage_addUsersEditor),
-    )
-    context.registerClass(users_editor.UsersEditor, constructors=constructors)
 
     context.registerClass(userdetails.UserDetails, constructors=(
         ('manage_add_userdetails_html',

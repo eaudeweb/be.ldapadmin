@@ -4,7 +4,6 @@ from zope.component import getMultiAdapter
 from zope.interface import Interface, Attribute, implements
 from DateTime.DateTime import DateTime
 from Products.Five import BrowserView
-from be.ldapadmin import factories
 
 
 class IActionDetails(Interface):
@@ -34,14 +33,12 @@ class BaseActionDetails(BrowserView):
         if entry['author'] == 'unknown user':
             return entry['author']
 
-        user_info = self._get_ldap_agent().user_info(entry['author'])
+        try:
+            user_info = self.context._get_ldap_agent().user_info(
+                entry['author'])
+        except AttributeError:
+            user_info = self.base._get_ldap_agent().user_info(entry['author'])
         return u"%s (%s)" % (user_info['full_name'], entry['author'])
-
-    def _get_ldap_agent(self):
-        # in Plone without the leading slash, since it will match the root acl
-        # user_folder = self.context.restrictedTraverse("acl_users")
-        user_folder = self.context.restrictedTraverse("/acl_users")
-        return factories.agent_from_uf(user_folder)
 
     def merge(self, roles):
         """ Merge the entries so that the only the leaf roles are displayed
@@ -190,17 +187,25 @@ class BaseOrganisationDetails(object):
 
     @property
     def organisation(self):
+        out = []
         for entry in self.entry['data']:
             org = entry.get('organisation')
             if org:
-                return self._get_ldap_agent().org_info(org)['name']
+                org_info = self.context._get_ldap_agent().org_info(org.strip())
+                name = org_info['name']
+                if not name and (
+                        'INEXISTENT' not in org_info['id']):
+                    name = org.title().replace('_', ' ')
+                out.append({'id': org, 'name': name})
 
-        return ""
+        return sorted(out, key=lambda x: x['id'])
 
     @property
     def organisation_id(self):
+        out = []
         for entry in self.entry['data']:
-            return entry.get('organisation')
+            out.append(entry.get('organisation'))
+        return sorted(out)
 
 
 class EnableAccount(BaseActionDetails):
