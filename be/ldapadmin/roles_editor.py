@@ -948,7 +948,7 @@ class RolesEditor(Folder):
         user_id = REQUEST.form['user_id']
         agent = self._get_ldap_agent(bind=True)
         with agent.new_action():
-            agent.set_membership_type(role_id, user_id, membership_type)
+            agent.edit_membership_type(role_id, user_id, membership_type)
         msg = "User %r updated role %s membership type %s." % (user_id, role_id, membership_type)
         _set_session_message(REQUEST, 'info', msg)
         log.info("%s UPDATED USER %s ROLE %r MEMBERSHIP TYPE %s",

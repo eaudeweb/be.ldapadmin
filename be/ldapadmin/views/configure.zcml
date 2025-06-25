@@ -140,6 +140,14 @@
         />
 
     <browser:page
+        name="details_EDITED_ROLE_MEMBERSHIP_TYPE"
+        for="*"
+        permission="zope.Public"
+        class=".changelog.EditedRoleMembershipType"
+        template="templates/edited_role_membership_type.pt"
+        />
+
+    <browser:page
         name="details_ADDED_AS_ROLE_OWNER"
         for="*"
         permission="zope.Public"

@@ -191,7 +191,7 @@ class BaseRoleDetails(BaseActionDetails):
                 self.membership_types[x['role']] = x['membership_type']
 
         self.roles = self.merge(roles)
-
+        self.entry = entry
         return self.index()
 
 
@@ -281,6 +281,13 @@ class RemovedFromRole(BaseRoleDetails):
     """
 
     action_title = "Removed from role"
+
+
+class EditedRoleMembershipType(BaseRoleDetails):
+    """ Details for action EDITED_ROLE_MEMBERSHIP_TYPE
+    """
+
+    action_title = "Edited role membership type"
 
 
 class AddedAsRoleOwner(BaseActionDetails):

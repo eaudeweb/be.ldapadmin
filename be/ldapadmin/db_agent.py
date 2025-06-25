@@ -30,6 +30,7 @@ REMOVED_PENDING_FROM_ORG = "REMOVED_PENDING_FROM_ORG"
 
 ADDED_TO_ROLE = "ADDED_TO_ROLE"
 REMOVED_FROM_ROLE = "REMOVED_FROM_ROLE"
+EDITED_ROLE_MEMBERSHIP_TYPE = "EDITED_ROLE_MEMBERSHIP_TYPE"
 
 ADDED_AS_ROLE_OWNER = "ADDED_AS_ROLE_OWNER"
 REMOVED_AS_ROLE_OWNER = "REMOVED_AS_ROLE_OWNER"
@@ -2022,6 +2023,19 @@ class UsersDB(object):
                 (ldap.MOD_ADD, 'myinformation', new_mt),
             ))
         return old_user_mt.get(role_id), user_mt.get(role_id)
+
+    @log_ldap_exceptions
+    def edit_membership_type(self, role_id, user_id, membership_type):
+        old_mt, new_mt = self.set_membership_type(role_id, user_id, membership_type)
+        user_dn = self._user_dn(user_id)
+        if old_mt != new_mt:
+            change_data = {
+                'role': role_id,
+                'member_type': 'user',
+                'old_membership_type': old_mt,
+                'new_membership_type': new_mt,
+            }
+            self.add_change_record(user_dn, EDITED_ROLE_MEMBERSHIP_TYPE, data=change_data)
 
     def mail_group_info(self, role_id):
         """ Returns:
