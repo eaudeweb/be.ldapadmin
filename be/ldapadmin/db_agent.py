@@ -80,7 +80,7 @@ LDAP_USER_SCHEMA = {
     # date when user was informed that account will be disabled
     'employeeNumber': 'pending_disable',
     # user to role membership type
-    'membershipType': 'myinformation',
+    'membershipType': 'destinationIndicator',
 }
 
 # actually operational ldap attributes
@@ -2016,11 +2016,11 @@ class UsersDB(object):
         ]
         try:
             self.conn.modify_s(user_dn, (
-                (ldap.MOD_REPLACE, 'myinformation', new_mt),
+                (ldap.MOD_REPLACE, LDAP_USER_SCHEMA['membershipType'], new_mt),
             ))
         except ldap.NO_SUCH_ATTRIBUTE:
             self.conn.modify_s(user_dn, (
-                (ldap.MOD_ADD, 'myinformation', new_mt),
+                (ldap.MOD_ADD, LDAP_USER_SCHEMA['membershipType'], new_mt),
             ))
         return old_user_mt.get(role_id), user_mt.get(role_id)
 
