@@ -6,6 +6,7 @@ import json
 import logging
 import random
 import re
+from copy import deepcopy
 from string import ascii_lowercase, digits, ascii_letters
 import ldap
 import ldap.filter
@@ -29,6 +30,7 @@ REMOVED_PENDING_FROM_ORG = "REMOVED_PENDING_FROM_ORG"
 
 ADDED_TO_ROLE = "ADDED_TO_ROLE"
 REMOVED_FROM_ROLE = "REMOVED_FROM_ROLE"
+EDITED_ROLE_MEMBERSHIP_TYPE = "EDITED_ROLE_MEMBERSHIP_TYPE"
 
 ADDED_AS_ROLE_OWNER = "ADDED_AS_ROLE_OWNER"
 REMOVED_AS_ROLE_OWNER = "REMOVED_AS_ROLE_OWNER"
@@ -77,6 +79,8 @@ LDAP_USER_SCHEMA = {
     'reasonToCreate': 'reasonToCreate',
     # date when user was informed that account will be disabled
     'employeeNumber': 'pending_disable',
+    # user to role membership type
+    'membershipType': 'destinationIndicator',
 }
 
 # actually operational ldap attributes
@@ -188,6 +192,16 @@ def log_ldap_exceptions(func):
 def generate_action_id():
     return "".join(random.sample(ascii_lowercase, 20))
 
+def parse_membership_type(mt):
+    result = {}
+
+    if mt:
+        entries = [x for x in mt.split(', ') if x.startswith('MT:')]
+        for entry in entries:
+            _, role_name, mt = entry.split(':')
+            result[role_name] = mt
+
+    return result
 
 class StreamingLDAPObject(LDAPObject, ResultProcessor):
     """ Useful in getting more results by bypassing
@@ -647,6 +661,7 @@ class UsersDB(object):
 
         user_info = self._unpack_user_info(dn, attr)
         user_info['orgs'] = self._search_user_in_orgs(user_id)
+        user_info['membership_type'] = parse_membership_type(user_info['membershipType'])
 
         return user_info
 
@@ -723,11 +738,19 @@ class UsersDB(object):
         """ return a role info for an object from a result
         """
         description = attr.get('description', [""])[0].decode(self._encoding)
+        postalAddress = attr.get('postalAddress', [""])[0].decode(self._encoding).replace('$', '\n')
+        postOfficeBox = attr.get('postOfficeBox', [""])[0].decode(self._encoding)
+        isDeactivatedRaw = attr.get('l', ["deactivated:False"])[0].decode(self._encoding)
+        isDeactivated = isDeactivatedRaw.lower().split('deactivated:')[-1] == 'true' or False
         extended = attr.get('businessCategory', ['False'])[0]
         extended = True and extended.lower() == 'true' or False
 
         return {
-            'description': description,
+            'description': description,  # this is used as title
+            'postalAddress': postalAddress,  # this is used as description
+            'postOfficeBox': postOfficeBox,  # this is used as status
+            'isDeactivated': isDeactivated,
+            'isActivated': not isDeactivated,
             'owner': attr.get('owner', []),
             'permittedSender': attr.get('permittedSender', []),
             'permittedPerson': attr.get('permittedPerson', []),
@@ -1052,6 +1075,7 @@ class UsersDB(object):
         for org_id in organisations:
             self.remove_from_org(org_id, [user_id])
 
+        user_info = self.user_info(user_id)
         roles = self.list_member_roles("user", user_id)
         for role in roles:
             # it does when it deletes parent role first,
@@ -1071,7 +1095,6 @@ class UsersDB(object):
 
         log.info("Disabling user %r", user_id)
 
-        user_info = self.user_info(user_id)
         user_dn = self._user_dn(user_id)
         self.add_change_record(user_dn, DISABLE_ACCOUNT, {
             'email': user_info['email'],
@@ -1079,6 +1102,7 @@ class UsersDB(object):
             'roles': list(roles),
             'roles_permittedPerson': list(roles_p),
             'roles_owner': list(roles_owner),
+            'membership_type': user_info['membership_type'],
         })
 
         result = self.conn.modify_s(
@@ -1231,12 +1255,13 @@ class UsersDB(object):
         if restore_roles:
             # add the user back to the organisations and roles that it had
             data = rec['data']
+            membership_type = data.get('membership_type', {})
             for org in data['organisations']:
                 self.add_to_org(org, [user_id])
 
             for role in data['roles']:
                 try:
-                    self.add_to_role(role, 'user', user_id)
+                    self.add_to_role(role, 'user', user_id, membership_type.get(role))
                 except ValueError:  # role was probably removed
                     continue
 
@@ -1695,6 +1720,46 @@ class UsersDB(object):
             ))
 
     @log_ldap_exceptions
+    def set_role_status(self, role_id, role_status):
+        """
+        Sets role postOfficeBox (or name) to `role_status`
+        `role_status` must be unicode or ascii bytes
+
+        """
+        assert self._bound, "call `perform_bind` before `set_role_status`"
+        log.info("Set postOfficeBox %r for role %r", role_status, role_id)
+        role_dn = self._role_dn(role_id)
+        role_status_bytes = role_status.encode(self._encoding)
+        try:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_REPLACE, 'postOfficeBox', [role_status_bytes]),
+            ))
+        except ldap.NO_SUCH_ATTRIBUTE:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_ADD, 'postOfficeBox', [role_status_bytes]),
+            ))
+
+    @log_ldap_exceptions
+    def set_role_address(self, role_id, address):
+        """
+        Sets role postalAddress (or description) to `address`
+        `address` must be unicode or ascii bytes
+
+        """
+        assert self._bound, "call `perform_bind` before `set_role_address`"
+        log.info("Set info %r for role %r", address, role_id)
+        role_dn = self._role_dn(role_id)
+        address_bytes = address.encode(self._encoding)
+        try:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_REPLACE, 'postalAddress', [address_bytes]),
+            ))
+        except ldap.NO_SUCH_ATTRIBUTE:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_ADD, 'postalAddress', [address_bytes]),
+            ))
+
+    @log_ldap_exceptions
     def set_role_extended_management(self, role_id, is_extended):
         """ Set the extended management flag for this role
         """
@@ -1737,6 +1802,39 @@ class UsersDB(object):
             log.info("Deleting role %r", role_id)
             result = self.conn.delete_s(dn)
             assert result[:2] == (ldap.RES_DELETE, [])
+
+    def raw_ldap_search(self, *args, **kwargs):
+        return self.conn.search_s(*args, **kwargs)
+
+    @log_ldap_exceptions
+    def activate_role(self, role_id):
+        assert self._bound, "call `perform_bind` before `activate_role`"
+        log.info("Activate role %r", role_id)
+        role_dn = self._role_dn(role_id)
+        value_bytes = u"deactivated:false".encode(self._encoding)
+        try:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_REPLACE, 'l', [value_bytes]),
+            ))
+        except ldap.NO_SUCH_ATTRIBUTE:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_ADD, 'l', [value_bytes]),
+            ))
+
+    @log_ldap_exceptions
+    def deactivate_role(self, role_id):
+        assert self._bound, "call `perform_bind` before `deactivate_role`"
+        log.info("Deactivate role %r", role_id)
+        role_dn = self._role_dn(role_id)
+        value_bytes = u"deactivated:true".encode(self._encoding)
+        try:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_REPLACE, 'l', [value_bytes]),
+            ))
+        except ldap.NO_SUCH_ATTRIBUTE:
+            self.conn.modify_s(role_dn, (
+                (ldap.MOD_ADD, 'l', [value_bytes]),
+            ))
 
     def raw_ldap_search(self, *args, **kwargs):
         return self.conn.search_s(*args, **kwargs)
@@ -1871,22 +1969,73 @@ class UsersDB(object):
         return roles
 
     @log_ldap_exceptions
-    def add_to_role(self, role_id, member_type, member_id):
+    def add_to_role(self, role_id, member_type, member_id, membership_type=None):
         assert self._bound, "call `perform_bind` before `add_to_role`"
-        log.info("Adding %r member %r to role %r",
-                 member_type, member_id, role_id)
+        log.info("Adding %r member %r to role %r (%s)",
+                 member_type, member_id, role_id, membership_type)
         member_dn = self._member_dn(member_type, member_id)
         role_dn = self._role_dn(role_id)
 
         role_dn_list = self._add_member_dn_to_role_dn(role_dn, member_dn)
+        self.set_membership_type(role_id, member_id, membership_type)
         roles = map(self._role_id, role_dn_list)
         user_dn = self._user_dn(member_id)
-        for role_id in roles:
-            self.add_change_record(user_dn, ADDED_TO_ROLE, {
-                'role': role_id,
+        for r_id in roles:
+            change_data = {
+                'role': r_id,
                 'member_type': member_type,
-            })
+            }
+            if membership_type and (r_id == role_id):
+                change_data['membership_type'] = membership_type
+            self.add_change_record(user_dn, ADDED_TO_ROLE, change_data)
         return roles
+
+    @log_ldap_exceptions
+    def set_membership_type(self, role_id, user_id, membership_type):
+        assert self._bound, "call `perform_bind` before `set_membership_type`"
+        if membership_type is None:
+            log.info(
+                "Removing membership type for %r on role %r",
+                user_id, role_id,
+            )
+        else:
+            log.info(
+                "Setting %r membership type for %r on role %r",
+                membership_type, user_id, role_id,
+            )
+        user_info = self.user_info(user_id)
+        user_dn = self._user_dn(user_id)
+        old_user_mt = user_info['membership_type']
+        user_mt = deepcopy(old_user_mt)
+        user_mt[role_id] = membership_type
+        new_mt = [
+            u"MT:{}:{}".format(r_id, mt).encode(self._encoding)
+            for r_id, mt
+            in user_mt.items()
+            if mt
+        ]
+        try:
+            self.conn.modify_s(user_dn, (
+                (ldap.MOD_REPLACE, LDAP_USER_SCHEMA['membershipType'], new_mt),
+            ))
+        except ldap.NO_SUCH_ATTRIBUTE:
+            self.conn.modify_s(user_dn, (
+                (ldap.MOD_ADD, LDAP_USER_SCHEMA['membershipType'], new_mt),
+            ))
+        return old_user_mt.get(role_id), user_mt.get(role_id)
+
+    @log_ldap_exceptions
+    def edit_membership_type(self, role_id, user_id, membership_type):
+        old_mt, new_mt = self.set_membership_type(role_id, user_id, membership_type)
+        user_dn = self._user_dn(user_id)
+        if old_mt != new_mt:
+            change_data = {
+                'role': role_id,
+                'member_type': 'user',
+                'old_membership_type': old_mt,
+                'new_membership_type': new_mt,
+            }
+            self.add_change_record(user_dn, EDITED_ROLE_MEMBERSHIP_TYPE, data=change_data)
 
     def mail_group_info(self, role_id):
         """ Returns:
@@ -2274,8 +2423,9 @@ class UsersDB(object):
         roles = sorted([self._role_id(x) for x in role_dn_list])
 
         for r in roles:
+            old_mt, _ = self.set_membership_type(r, member_id, None)
             self.add_change_record(member_dn, REMOVED_FROM_ROLE,
-                                   {'role': r, 'member_type': member_type})
+                                   {'role': r, 'member_type': member_type, 'membership_type': old_mt})
         return map(self._role_id, role_dn_list)
 
     @log_ldap_exceptions

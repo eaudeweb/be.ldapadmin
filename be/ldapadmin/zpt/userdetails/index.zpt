@@ -222,6 +222,9 @@
                                 <td>
                                     Role name
                                 </td>
+                                <td>
+                                    Membership type
+                                </td>
                             </tr>
                         </thead>
                         <tbody>
@@ -233,6 +236,7 @@
                                         tal:content="python: role[0]" nowrap="nowrap" />
                                     </td>
                                     <td tal:content="python: role[1]" />
+                                    <td tal:content="python: user['membership_type'].get(role[0], '-')" />
                                 </tr>
                             </tal:block>
                         </tbody>
@@ -271,6 +275,9 @@
                                 <td>
                                     Role name
                                 </td>
+                                <td>
+                                    Membership type
+                                </td>
                             </tr>
                         </thead>
                         <tbody>
@@ -282,6 +289,7 @@
                                         tal:content="python: role[0]" nowrap="nowrap" />
                                     </td>
                                     <td tal:content="python: role[1]" />
+                                    <td tal:content="python: user['membership_type'].get(role[0], '-')" />
                                 </tr>
                             </tal:block>
                             <tal:block repeat="role options/removed_roles">
@@ -291,6 +299,7 @@
                                         tal:content="python: role[0]" nowrap="nowrap" />
                                     </td>
                                     <td tal:content="python: role[1]" />
+                                    <td tal:content="python:options['removed_membership_type'].get(role[0], '-')" />
                                 </tr>
                             </tal:block>
                         </tbody>

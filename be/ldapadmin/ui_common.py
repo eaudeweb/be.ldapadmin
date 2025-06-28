@@ -174,12 +174,14 @@ class CommonTemplateLogic(object):
     def user_id(self):
         return logged_in_user(self._get_request())
 
-    def buttons_bar(self, current_page, role_id, members_in_role=0):
+    def buttons_bar(self, current_page, role_id, members_in_role=0, is_deactivated=False):
         user = self._get_request().AUTHENTICATED_USER
 
         options = {
             'current_page': current_page,
             'role_id': role_id,
+            'is_deactivated': is_deactivated,
+            'is_activated': not is_deactivated,
             'common': self,
             'can_edit_roles': self.context.can_edit_roles(user),
             'can_edit_members': self.context.can_edit_members(role_id, user),

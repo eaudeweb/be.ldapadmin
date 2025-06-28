@@ -88,6 +88,24 @@ SESSION_MESSAGES = SESSION_PREFIX + '.messages'
 SESSION_FORM_DATA = SESSION_PREFIX + '.form_data'
 
 
+OPTIONS_ROLES_STATUS = (
+    "Expected",
+    "In discussion",
+    "Pending",
+    "Comitology",
+    "Permanent group",
+    "Ad hoc group",
+)
+
+OPTIONS_MEMBERSHIP_TYPE = (
+    "Expert",
+    "Info",
+    "Pilot",
+    "President",
+    "Official representative",
+)
+
+
 def _set_session_message(request, msg_type, msg):
     SessionMessages(request, SESSION_MESSAGES).add(msg_type, msg)
 
@@ -377,6 +395,7 @@ class RolesEditor(Folder):
                         del(role_infos[role])
         options = {
             'roles_domain': ROLES_DOMAIN,
+            'roles_status': OPTIONS_ROLES_STATUS,
             'role_id': role_id,
             'role_name': get_role_name(agent, role_id),
             'role_info': role_info,
@@ -395,6 +414,7 @@ class RolesEditor(Folder):
             'agent': agent,
             'get_user_info': get_user_info,
             'has_groupware': has_groupware,
+            'options_membership_type': OPTIONS_MEMBERSHIP_TYPE,
         }
 
         self._set_breadcrumbs(self._role_parents_stack(role_id))
@@ -638,6 +658,12 @@ class RolesEditor(Folder):
         arguments have arbitrary number
 
         """
+        agent = self._get_ldap_agent()
+        role_info = agent.role_info(role_id)
+
+        if role_info['isDeactivated']:
+            return False
+
         try:
             uid = user._id
         except AttributeError:
@@ -650,8 +676,6 @@ class RolesEditor(Folder):
             # top role - can_edit_roles check was sufficient for granting
             return False
 
-        agent = self._get_ldap_agent()
-        role_info = agent.role_info(role_id)
         return agent._user_dn(user.getId()) in role_info['owner']
 
     security.declareProtected(view, 'can_delete_role')
@@ -828,6 +852,42 @@ class RolesEditor(Folder):
         rel_url = '/?role_id=' + parent_role_id if parent_role_id else '/'
         REQUEST.RESPONSE.redirect(self.absolute_url() + rel_url)
 
+    def activate_role(self, REQUEST):
+        """ activate a role """
+        role_id = REQUEST.form['role_id']
+        if not self.can_delete_role(role_id, REQUEST.AUTHENTICATED_USER):
+            raise Unauthorized(("You are not allowed to activate role %s. "
+                                "Owners can only activate empty roles")
+                               % role_id)
+        logged_in = logged_in_user(REQUEST)
+        agent = self._get_ldap_agent(bind=True)
+        with agent.new_action():
+            agent.activate_role(role_id)
+        _set_session_message(REQUEST, 'info', "Activated role %s" % role_id)
+
+        log.info("%s ACTIVATED ROLE %s", logged_in, role_id)
+
+        rel_url = '/?role_id=' + role_id
+        REQUEST.RESPONSE.redirect(self.absolute_url() + rel_url)
+
+    def deactivate_role(self, REQUEST):
+        """ deactivate a role """
+        role_id = REQUEST.form['role_id']
+        if not self.can_delete_role(role_id, REQUEST.AUTHENTICATED_USER):
+            raise Unauthorized(("You are not allowed to deactivate role %s. "
+                                "Owners can only deactivate empty roles")
+                               % role_id)
+        logged_in = logged_in_user(REQUEST)
+        agent = self._get_ldap_agent(bind=True)
+        with agent.new_action():
+            agent.deactivate_role(role_id)
+        _set_session_message(REQUEST, 'info', "Deactivated role %s" % role_id)
+
+        log.info("%s DEACTIVATED ROLE %s", logged_in, role_id)
+
+        rel_url = '/?role_id=' + role_id
+        REQUEST.RESPONSE.redirect(self.absolute_url() + rel_url)
+
     security.declareProtected(view, 'add_member_html')
 
     def add_member_html(self, REQUEST):
@@ -841,6 +901,7 @@ class RolesEditor(Folder):
             'role_id': role_id,
             'search_name': search_name,
             'search_results': None,
+            'options_membership_type': OPTIONS_MEMBERSHIP_TYPE,
         }
         if search_name:
             agent = self._get_ldap_agent()
@@ -859,20 +920,39 @@ class RolesEditor(Folder):
     security.declareProtected(view, 'add_user')
 
     def add_user(self, REQUEST):
-        """ Add user `user_id` to role `role_id` """
+        """ Add user `user_id` to role `role_id` with membership type `membership_type` """
         role_id = REQUEST.form['role_id']
+        membership_type = REQUEST.form['membership_type']
         if not self.can_edit_members(role_id, REQUEST.AUTHENTICATED_USER):
             raise Unauthorized("You are not allowed to manage members in %s" %
                                role_id)
         user_id = REQUEST.form['user_id']
         agent = self._get_ldap_agent(bind=True)
         with agent.new_action():
-            role_id_list = agent.add_to_role(role_id, 'user', user_id)
+            role_id_list = agent.add_to_role(role_id, 'user', user_id, membership_type)
         roles_msg = roles_list_to_text(agent, role_id_list)
-        msg = "User %r added to roles %s." % (user_id, roles_msg)
+        msg = "User %r added to roles %s with membership type %s." % (user_id, roles_msg, membership_type)
         _set_session_message(REQUEST, 'info', msg)
-        log.info("%s ADDED USER %s to ROLE(S) %r",
-                 logged_in_user(REQUEST), user_id, role_id_list)
+        log.info("%s ADDED USER %s to ROLE(S) %r WITH MEMBERSHIP TYPE %s",
+                 logged_in_user(REQUEST), user_id, role_id_list, membership_type)
+
+        REQUEST.RESPONSE.redirect(self.absolute_url() + '/?role_id=' + role_id)
+
+    def edit_user_membership_type(self, REQUEST):
+        """ Change user `user_id` membership type `membership_type` in role `role_id` """
+        role_id = REQUEST.form['role_id']
+        membership_type = REQUEST.form['membership_type']
+        if not self.can_edit_members(role_id, REQUEST.AUTHENTICATED_USER):
+            raise Unauthorized("You are not allowed to manage members in %s" %
+                               role_id)
+        user_id = REQUEST.form['user_id']
+        agent = self._get_ldap_agent(bind=True)
+        with agent.new_action():
+            agent.edit_membership_type(role_id, user_id, membership_type)
+        msg = "User %r updated role %s membership type %s." % (user_id, role_id, membership_type)
+        _set_session_message(REQUEST, 'info', msg)
+        log.info("%s UPDATED USER %s ROLE %r MEMBERSHIP TYPE %s",
+                 logged_in_user(REQUEST), user_id, role_id, membership_type)
 
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/?role_id=' + role_id)
 
@@ -1012,9 +1092,19 @@ class RolesEditor(Folder):
         REQUEST.RESPONSE.setHeader('Content-Disposition',
                                    "attachment;filename=%s" % filename)
         header = ('Name', 'User ID', 'Email', 'Tel', 'Fax', 'Postal Address',
-                  'Organisation')
+                  'Organisation', )
         if subroles:
-            header = ('Subrole', ) + header
+            header = (
+                 'Role',
+                 'Role description',
+                 'Role status',
+                 'Role deactivated',
+                 'Membership type',
+            ) + header
+        else:
+            # Membership type is the last column in single role export,
+            # but it is right next to the role columns for subroles export.
+            header = header + ('Membership type', )
 
         agent = self._get_ldap_agent()
         try:
@@ -1027,6 +1117,8 @@ class RolesEditor(Folder):
         members = role_members(agent, role_id, subroles)
         keys = sorted(members['users'].keys())
 
+        roles_info = {}
+
         rows = []
         for u_id in keys:
             usr = members['users'][u_id]
@@ -1034,10 +1126,72 @@ class RolesEditor(Folder):
                    usr['phone'], usr['fax'], usr['postal_address'],
                    usr['organisation']]
             if subroles:
-                row.insert(0, '\n'.join(usr['roles']))
-            rows.append([value.encode('utf-8') for value in row])
+                for role in usr['roles']:
+                    role_info = roles_info.get(role, None)
+                    if role_info is None:
+                        role_info = agent.role_info(role)
+                        roles_info[role] = role_info
+                    rows.append([
+                        value.encode('utf-8')
+                        for value in [
+                            role,
+                            role_info["postalAddress"],
+                            role_info['postOfficeBox'],
+                            str(role_info['isDeactivated']),
+                            usr['membership_type'].get(role, '-'),
+                         ] + row
+                    ])
+            else:
+                row.append(usr['membership_type'].get(role_id, '-'))
+                rows.append([value.encode('utf-8') for value in row])
 
-        return generate_excel(header, rows)
+        def fiddle_workbook(wb):
+            style_center = xlwt.XFStyle()
+            align_center = xlwt.Alignment()
+            align_center.horz = xlwt.Alignment.HORZ_CENTER
+            align_center.vert = xlwt.Alignment.VERT_CENTER
+            style_center.alignment = align_center
+
+            ws = wb.get_sheet(0)
+            # enable cell overwrite, otherwise merge will fail
+            ws._cell_overwrite_ok = True
+
+            merge_columns = [
+                0, # name
+                1, # description
+                2, # status
+                3, # deactivated
+            ]
+
+            current_slice_start = 0
+            len_rows = len(rows)
+            for i in range(0, len_rows):
+                current_role = rows[i][0]
+                next_role = rows[i+1][0] if i + 1 < len_rows else None
+                if next_role != current_role:
+                    current_slice_end = i
+
+                    # account for XLS header row (add offset)
+                    offset_slice_range_start = current_slice_start + 1
+                    offset_slice_range_end = current_slice_end + 1
+
+                    for col_idx in merge_columns:
+                        ws.write_merge(
+                            offset_slice_range_start,
+                            offset_slice_range_end,
+                            col_idx, col_idx,
+                            rows[i][col_idx],
+                           style_center,
+                        )
+
+                    # start next slice at next row
+                    current_slice_start = i + 1
+
+        if subroles:
+            rows.sort(key=lambda x: x[0])  # sort by name
+            return generate_excel(header, rows, fiddle_workbook)
+        else:
+            return generate_excel(header, rows)
 
     security.declareProtected(view, 'edit_owners')
 
@@ -1286,18 +1440,31 @@ class RolesEditor(Folder):
             return json.dumps({'error':
                                "You are not allowed to manage senders in %s" %
                                role_id})
-        if REQUEST.REQUEST_METHOD == 'POST':
+        agent = self._get_ldap_agent()
+        role_info = agent.role_info(role_id)
+        isDeactivated = role_info['isDeactivated']
+        if REQUEST.REQUEST_METHOD == 'POST' and not isDeactivated:
             description = REQUEST.form.get('role_name')
+            address = REQUEST.form.get('role_description')
+            role_status = REQUEST.form.get('role_status')
             agent = self._get_ldap_agent(bind=True)
             try:
                 with agent.new_action():
                     agent.set_role_description(role_id, description)
+                    agent.set_role_status(role_id, role_status)
+                    agent.set_role_address(role_id, address)
             except Exception as e:
                 return json.dumps({'error': unicode(e)})
             else:
                 log.info("%s SET DESCRIPTION %r FOR ROLE %s",
                          logged_in_user(REQUEST), description, role_id)
+                log.info("%s SET ADDRESS %r FOR ROLE %s",
+                         logged_in_user(REQUEST), address, role_id)
+                log.info("%s SET POSTOFFICEBOX %r FOR ROLE %s",
+                         logged_in_user(REQUEST), role_status, role_id)
                 return json.dumps({'error': False})
+        elif isDeactivated:
+            return json.dumps({'error': u'Role is deactivated!'})
 
     security.declareProtected(view_management_screens, 'manage_add_query_html')
     manage_add_query_html = query.manage_add_query_html

@@ -1,14 +1,34 @@
-<div id="role-name">
+<div id="role-name" tal:define="role_status options/role_info/postOfficeBox">
     <h1 tal:define="name python:(options['role_info']['description'].strip()
         or 'Role %s' % options['role_id'])"
         tal:content="name" class="left-position" />
-    <img tal:condition="python:options.get('role_id') and options['can_edit_members']"
+    <div id="role-status" title="Status" tal:content="role_status"></div>
+    <img tal:condition="python:options.get('role_id') and options['role_info']['isActivated'] and options['can_edit_members']"
         src="/++resource++be.ldapadmin-www/edit.gif" id="edit-role-description-arrow" />
+    <div id="role-description" tal:content="options/role_info/postalAddress|nothing"></div>
 </div>
 <div id="role-name-edit" tal:condition="python:options.get('role_id') and options['can_edit_members']">
     <input type="hidden" name="role_id" tal:attributes="value options/role_id" />
-    <input type="text" name="role_name" tal:attributes="value options/role_info/description" class="role_name" />
+    <div class="role-field">
+        <label for="fieldRoleName">Role name</label> <br />
+        <input type="text" name="role_name" id="fieldRoleName" tal:attributes="value options/role_info/description" class="role_name" />
+    </div>
+    <div class="role-field">
+        <label for="fieldRoleStatus">Role status</label> <br />
+        <select name="role_status" id="fieldRoleStatus">
+            <option value="">-</option>
+            <option
+                     tal:repeat="role_status options/roles_status"
+                     tal:content="role_status"
+                     tal:attributes="value role_status; selected python:role_status == options['role_info'].get('postOfficeBox', '') "></option>
+        </select>
+    </div>
+    <div class="role-field">
+        <label for="fieldRoleDescription">Role description</label>
+        <textarea rows="10" cols="30" name="role_description" id="fieldRoleDescription" tal:content="options/role_info/postalAddress" class="role_description"></textarea>
+    </div>
     <input type="submit" name="submit" value="Save" />
+    <input id="role-name-edit-cancel" type="button" value="Cancel" />
 </div>
 
 <a tal:attributes="href string:mailto:${options/role_id}@${options/roles_domain}"
@@ -45,7 +65,7 @@
     #location-tabs .ui-accordion-content a:link { color: #2a6495; }
 </style>
 
-<tal:block content="structure python:common.buttons_bar('role', options['role_id'], len(options['role_members']['users']))"/>
+<tal:block content="structure python:common.buttons_bar('role', options['role_id'], len(options['role_members']['users']), options['role_info']['isDeactivated'])"/>
 
 <tal:block content="structure common/message_boxes"/>
 
@@ -125,7 +145,7 @@
         <kbd tal:content="string:${role_name} (${role_id})" />
       </h2>
 
-      <tal:block define="users role_members/users">
+      <tal:block define="users role_members/users; showMembershipType python:True; can_edit_members options/can_edit_members">
           <metal:block use-macro="common/macros/table-user-info" />
       </tal:block>
     </tal:block>

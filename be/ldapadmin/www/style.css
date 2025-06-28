@@ -779,10 +779,31 @@ input.shortcut_country{
 
 div#role-name{
 	float: left;
+	margin-bottom: 0.67em;
+}
+div#role-name h1{
+	margin-bottom: 0;
+}
+div#role-status {
+	clear: both;
+	border-radius: 5px;
+	color: #fff;
+	background-color: #2a6495;
+	padding: 0.3em 0.5em;
+	display: inline-block;
+	margin: 0.5em;
+}
+div#role-status:empty {
+	display: none;
+}
+div#role-description{
+	clear: both;
+	white-space-collapse: preserve;
 }
 div#role-name-edit{
 	display: none;
 	float: left;
+	padding-bottom: 1em;
 }
 img#edit-role-description-arrow{
 	margin: 6px 0 0 6px;
@@ -790,6 +811,13 @@ img#edit-role-description-arrow{
 }
 div#role-name-edit input.role_name{
 	width: 500px;
+}
+div#role-name-edit textarea.role_description{
+	width: 100%;
+}
+
+div#role-name-edit .role-field {
+	margin: 0.5em 0;
 }
 
 div#shortcut-queries{
@@ -815,6 +843,16 @@ div#shortcut-queries{
 #delete-role, #delete-members{
 	/*float: right;*/
 }
+
+a#deactivate-role {
+	background-color: #bf5900;
+	margin: 0 1em;
+}
+a#activate-role {
+	background-color: #6f9839;
+	margin: 0 1em;
+}
+
 #senders_tokens span.info{
 	/*font-style: italic;*/
 }
