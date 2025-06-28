@@ -5,6 +5,8 @@ from zope.interface import Interface, Attribute, implements
 from DateTime.DateTime import DateTime
 from Products.Five import BrowserView
 
+from be.ldapadmin import UserNotFound
+
 
 class IActionDetails(Interface):
     """ A view that presents details about user changelog actions
@@ -38,6 +40,8 @@ class BaseActionDetails(BrowserView):
                 entry['author'])
         except AttributeError:
             user_info = self.base._get_ldap_agent().user_info(entry['author'])
+        except UserNotFound:
+            user_info = {'full_name': entry['author']}
         return u"%s (%s)" % (user_info['full_name'], entry['author'])
 
     def merge(self, roles):
@@ -178,8 +182,16 @@ class OrganisationChangelog(BrowserView):
 class BaseRoleDetails(BaseActionDetails):
 
     def details(self, entry):
-        roles = [x['role'] for x in entry['data']]
+        self.membership_types = {}
+
+        roles = []
+        for x in entry['data']:
+            roles.append(x['role'])
+            if 'membership_type' in x:
+                self.membership_types[x['role']] = x['membership_type']
+
         self.roles = self.merge(roles)
+        self.entry = entry
         return self.index()
 
 
@@ -269,6 +281,13 @@ class RemovedFromRole(BaseRoleDetails):
     """
 
     action_title = "Removed from role"
+
+
+class EditedRoleMembershipType(BaseRoleDetails):
+    """ Details for action EDITED_ROLE_MEMBERSHIP_TYPE
+    """
+
+    action_title = "Edited role membership type"
 
 
 class AddedAsRoleOwner(BaseActionDetails):

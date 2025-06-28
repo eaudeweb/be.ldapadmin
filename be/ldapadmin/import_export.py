@@ -51,7 +51,7 @@ def excel_headers_to_object(properties):
     }
 
 
-def generate_excel(header, rows):
+def generate_excel(header, rows, fiddle_workbook=None):
     style = xlwt.XFStyle()
     wrapstyle = xlwt.XFStyle()
     wrapstyle.alignment.wrap = 1
@@ -75,6 +75,10 @@ def generate_excel(header, rows):
                 ws.row(row).set_cell_text(col, item[col], wrapstyle)
             else:
                 ws.row(row).set_cell_text(col, item[col], style)
+
+    if fiddle_workbook:
+        fiddle_workbook(wb)
+    
     output = StringIO()
     wb.save(output)
     return output.getvalue()
