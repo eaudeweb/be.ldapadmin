@@ -6,6 +6,7 @@ import json
 import logging
 import random
 import re
+import base64
 from copy import deepcopy
 from string import ascii_lowercase, digits, ascii_letters
 import ldap
@@ -192,13 +193,23 @@ def log_ldap_exceptions(func):
 def generate_action_id():
     return "".join(random.sample(ascii_lowercase, 20))
 
+
+def decode_membership_type(encoded_mt):
+    role_id, mt = base64.b64decode(encoded_mt).split(':')
+    return role_id, mt
+
+
 def parse_membership_type(mt):
     result = {}
 
     if mt:
         entries = [x for x in mt.split(', ') if x.startswith('MT:')]
         for entry in entries:
-            _, role_name, mt = entry.split(':')
+            split_entry = entry.split(':')
+            if len(split_entry) == 2:
+                role_name, mt = decode_membership_type(split_entry[-1])
+            else:
+                role_name, mt = split_entry[1:]
             result[role_name] = mt
 
     return result
@@ -1990,6 +2001,10 @@ class UsersDB(object):
             self.add_change_record(user_dn, ADDED_TO_ROLE, change_data)
         return roles
 
+    def _encode_membership_type(self, role_id, mt):
+        encoded = base64.b64encode("{}:{}".format(role_id, mt))
+        return u"MT:{}".format(encoded).encode(self._encoding)
+
     @log_ldap_exceptions
     def set_membership_type(self, role_id, user_id, membership_type):
         assert self._bound, "call `perform_bind` before `set_membership_type`"
@@ -2009,7 +2024,7 @@ class UsersDB(object):
         user_mt = deepcopy(old_user_mt)
         user_mt[role_id] = membership_type
         new_mt = [
-            u"MT:{}:{}".format(r_id, mt).encode(self._encoding)
+            self._encode_membership_type(r_id, mt)
             for r_id, mt
             in user_mt.items()
             if mt
