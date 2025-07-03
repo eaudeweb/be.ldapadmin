@@ -19,7 +19,7 @@
 <div class="search-form">
   <form name="search-form">
     <input type="hidden" name="role_id" tal:attributes="value options/role_id"/>
-    
+
     <label for="search-query">
       Name of user:
     </label>
@@ -27,7 +27,7 @@
     <input type="search" name="name:ustring:utf8" id="search-query"
            class="text-input large"
            tal:attributes="value options/search_name"/>
-  
+
     <input type="submit" value="Search" class="primary-button" />
     <div class="clear">&nbsp;</div>
   </form>
@@ -106,7 +106,7 @@
                    tal:attributes="value options/role_id" />
             <input type="hidden" name="user_id"
                    tal:attributes="value user_info/id" />
-            <select name="membership_type" required="required">
+            <select name="membership_type">
                 <option value="">Select membership type</option>
                 <option
                         tal:repeat="option_mt options/options_membership_type"

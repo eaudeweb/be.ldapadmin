@@ -1982,8 +1982,12 @@ class UsersDB(object):
     @log_ldap_exceptions
     def add_to_role(self, role_id, member_type, member_id, membership_type=None):
         assert self._bound, "call `perform_bind` before `add_to_role`"
-        log.info("Adding %r member %r to role %r (%s)",
-                 member_type, member_id, role_id, membership_type)
+        if membership_type:
+            log.info("Adding %r member %r to role %r (%s)",
+                     member_type, member_id, role_id, membership_type)
+        else:
+            log.info("Adding %r member %r to role %r",
+                     member_type, member_id, role_id)
         member_dn = self._member_dn(member_type, member_id)
         role_dn = self._role_dn(role_id)
 
@@ -2008,19 +2012,21 @@ class UsersDB(object):
     @log_ldap_exceptions
     def set_membership_type(self, role_id, user_id, membership_type):
         assert self._bound, "call `perform_bind` before `set_membership_type`"
-        if membership_type is None:
+        user_info = self.user_info(user_id)
+        old_user_mt = user_info['membership_type']
+
+        if membership_type is None and old_user_mt.get(role_id):
             log.info(
                 "Removing membership type for %r on role %r",
                 user_id, role_id,
             )
-        else:
+        elif membership_type:
             log.info(
                 "Setting %r membership type for %r on role %r",
                 membership_type, user_id, role_id,
             )
-        user_info = self.user_info(user_id)
+
         user_dn = self._user_dn(user_id)
-        old_user_mt = user_info['membership_type']
         user_mt = deepcopy(old_user_mt)
         user_mt[role_id] = membership_type
         new_mt = [

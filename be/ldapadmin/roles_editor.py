@@ -922,7 +922,7 @@ class RolesEditor(Folder):
     def add_user(self, REQUEST):
         """ Add user `user_id` to role `role_id` with membership type `membership_type` """
         role_id = REQUEST.form['role_id']
-        membership_type = REQUEST.form['membership_type']
+        membership_type = REQUEST.form.get('membership_type', None) or None
         if not self.can_edit_members(role_id, REQUEST.AUTHENTICATED_USER):
             raise Unauthorized("You are not allowed to manage members in %s" %
                                role_id)
@@ -931,17 +931,24 @@ class RolesEditor(Folder):
         with agent.new_action():
             role_id_list = agent.add_to_role(role_id, 'user', user_id, membership_type)
         roles_msg = roles_list_to_text(agent, role_id_list)
-        msg = "User %r added to roles %s with membership type %s." % (user_id, roles_msg, membership_type)
+        if membership_type:
+            msg = "User %r added to roles %s with membership type %s." % (user_id, roles_msg, membership_type)
+        else:
+            msg = "User %r added to roles %s." % (user_id, roles_msg)
         _set_session_message(REQUEST, 'info', msg)
-        log.info("%s ADDED USER %s to ROLE(S) %r WITH MEMBERSHIP TYPE %s",
-                 logged_in_user(REQUEST), user_id, role_id_list, membership_type)
+        if membership_type:
+            log.info("%s ADDED USER %s to ROLE(S) %r WITH MEMBERSHIP TYPE %s",
+                     logged_in_user(REQUEST), user_id, role_id_list, membership_type)
+        else:
+            log.info("%s ADDED USER %s to ROLE(S) %r",
+                     logged_in_user(REQUEST), user_id, role_id_list)
 
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/?role_id=' + role_id)
 
     def edit_user_membership_type(self, REQUEST):
         """ Change user `user_id` membership type `membership_type` in role `role_id` """
         role_id = REQUEST.form['role_id']
-        membership_type = REQUEST.form['membership_type']
+        membership_type = REQUEST.form.get('membership_type', None) or None
         if not self.can_edit_members(role_id, REQUEST.AUTHENTICATED_USER):
             raise Unauthorized("You are not allowed to manage members in %s" %
                                role_id)
