@@ -1,15 +1,16 @@
 <strong>Roles</strong> <br/>
-<tal:data tal:define="data python:view.entry['data']; data_len python:len(data)">
-    <div tal:repeat="role view/roles"> ~ <span tal:content="role" />
-        <tal:one tal:condition="python:data_len == 1">
-            <tal:mt tal:define="d python:data[0]; old_mt python:d['old_membership_type'];new_mt python:d['new_membership_type']">
+<div tal:repeat="role view/roles"> ~ <span tal:content="role" />
+    <tal:perrole define="data_per_role python:view.data_per_role[role]; data_per_role_len python:len(data_per_role)">
+        <tal:one tal:condition="python:data_per_role_len == 1">
+            <tal:mt tal:define="d python:data_per_role[0]; old_mt python:d['old_membership_type'];new_mt python:d['new_membership_type']">
                 <tal:both tal:condition="python:old_mt and new_mt">(<span tal:replace="old_mt">old_mt</span> => <span tal:replace="new_mt">new_mt</span>)</tal:both>
                 <tal:new tal:condition="python:new_mt and not old_mt">(<span tal:replace="new_mt">new_mt</span>)</tal:new>
                 <tal:old tal:condition="python:old_mt and not new_mt">(<del tal:content="old_mt">old_mt</del>)</tal:old>
             </tal:mt>
         </tal:one>
-        <ul tal:condition="python:data_len > 1">
-            <li tal:repeat="d python:data">
+        <ul tal:condition="python:data_per_role_len > 1">
+            <li tal:repeat="d python:data_per_role">
+                <pre tal:content="d"></pre>
                 <tal:mt tal:define="old_mt python:d['old_membership_type'];new_mt python:d['new_membership_type']" tal:condition="python:new_mt or old_mt">
                     <tal:both tal:condition="python:old_mt and new_mt">(<span tal:replace="old_mt">old_mt</span> =>
                         <span tal:replace="new_mt">new_mt</span>)
@@ -21,5 +22,5 @@
                 </tal:mt>
             </li>
         </ul>
-    </div>
-</tal:data>
+    </tal:perrole>
+</div>

@@ -183,12 +183,18 @@ class BaseRoleDetails(BaseActionDetails):
 
     def details(self, entry):
         self.membership_types = {}
+        self.data_per_role = {}
 
         roles = []
         for x in entry['data']:
-            roles.append(x['role'])
+            data_role = x['role']
+            if data_role not in self.data_per_role:
+                self.data_per_role[data_role] = []
+            self.data_per_role[data_role].append(x)
+
+            roles.append(data_role)
             if 'membership_type' in x:
-                self.membership_types[x['role']] = x['membership_type']
+                self.membership_types[data_role] = x['membership_type']
 
         self.roles = self.merge(roles)
         self.entry = entry
