@@ -1100,18 +1100,13 @@ class RolesEditor(Folder):
                                    "attachment;filename=%s" % filename)
         header = ('Name', 'User ID', 'Email', 'Tel', 'Fax', 'Postal Address',
                   'Organisation', )
-        if subroles:
-            header = (
-                 'Role',
-                 'Role description',
-                 'Role status',
-                 'Role deactivated',
-                 'Membership type',
-            ) + header
-        else:
-            # Membership type is the last column in single role export,
-            # but it is right next to the role columns for subroles export.
-            header = header + ('Membership type', )
+        header = (
+             'Role',
+             'Role description',
+             'Role status',
+             'Role deactivated',
+             'Membership type',
+        ) + header
 
         agent = self._get_ldap_agent()
         try:
@@ -1132,25 +1127,24 @@ class RolesEditor(Folder):
             row = [usr['full_name'], usr['id'], usr['email'],
                    usr['phone'], usr['fax'], usr['postal_address'],
                    usr['organisation']]
-            if subroles:
-                for role in usr['roles']:
-                    role_info = roles_info.get(role, None)
-                    if role_info is None:
-                        role_info = agent.role_info(role)
-                        roles_info[role] = role_info
-                    rows.append([
-                        value.encode('utf-8')
-                        for value in [
-                            role,
-                            role_info["postalAddress"],
-                            role_info['postOfficeBox'],
-                            str(role_info['isDeactivated']),
-                            usr['membership_type'].get(role, '-'),
-                         ] + row
-                    ])
-            else:
-                row.append(usr['membership_type'].get(role_id, '-'))
-                rows.append([value.encode('utf-8') for value in row])
+
+            user_roles = usr.get('roles', [role_id])
+
+            for role in user_roles:
+                role_info = roles_info.get('role', None)
+                if role_info is None:
+                    role_info = agent.role_info(role)
+                    roles_info[role] = role_info
+                rows.append([
+                    value.encode('utf-8')
+                    for value in [
+                        role,
+                        role_info["postalAddress"],
+                        role_info['postOfficeBox'],
+                        str(role_info['isDeactivated']),
+                        usr['membership_type'].get(role, '-'),
+                     ] + row
+                ])
 
         def fiddle_workbook(wb):
             style_center = xlwt.XFStyle()
@@ -1194,11 +1188,8 @@ class RolesEditor(Folder):
                     # start next slice at next row
                     current_slice_start = i + 1
 
-        if subroles:
-            rows.sort(key=lambda x: x[0])  # sort by name
-            return generate_excel(header, rows, fiddle_workbook)
-        else:
-            return generate_excel(header, rows)
+        rows.sort(key=lambda x: x[0])  # sort by name
+        return generate_excel(header, rows, fiddle_workbook)
 
     security.declareProtected(view, 'edit_owners')
 
