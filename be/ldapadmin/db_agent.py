@@ -883,6 +883,8 @@ class UsersDB(object):
         user_info['full_name'] = full_name.strip()
 
     def _user_info_diff(self, user_id, old_info, new_info):
+        """Returns a dictionary with only the relevant changes to the user
+        (so excluding fields that are not editable in the form, like changelog, membership_type) """
         def pack(value):
             return [value.encode(self._encoding)]
 
@@ -918,6 +920,9 @@ class UsersDB(object):
             elif name == 'organisation':
                 # organisations are treated by their own methods
                 # remove_from_org, add_to_org which will be called later
+                continue
+            elif name == 'membershipType':
+                # membershipType is not editable in the form, avoid losing the info
                 continue
             else:
                 old_value = old_info.get(name, u"")

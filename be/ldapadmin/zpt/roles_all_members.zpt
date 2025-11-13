@@ -56,7 +56,8 @@
 <tal:block content="structure common/message_boxes"/>
 
 <tal:block define="users options/users;
-                   is_authenticated common/is_authenticated">
+                   is_authenticated common/is_authenticated;
+                   role_id options/role_id">
     <div id="role-mailing-list"  tal:define="rich_view python:True">
         <metal:block use-macro="common/macros/table-user-info" />
     </div>

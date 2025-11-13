@@ -10,7 +10,6 @@
         </tal:one>
         <ul tal:condition="python:data_per_role_len > 1">
             <li tal:repeat="d python:data_per_role">
-                <pre tal:content="d"></pre>
                 <tal:mt tal:define="old_mt python:d['old_membership_type'];new_mt python:d['new_membership_type']" tal:condition="python:new_mt or old_mt">
                     <tal:both tal:condition="python:old_mt and new_mt">(<span tal:replace="old_mt">old_mt</span> =>
                         <span tal:replace="new_mt">new_mt</span>)
