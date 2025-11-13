@@ -998,16 +998,16 @@ class RolesEditor(Folder):
     security.declareProtected(view, 'export_members')
 
     def export_members(self, REQUEST):
-        """ Exports xls of members in role given by role_id in QUERY_STRING """
+        """ Exports xlsx of members in role given by role_id in QUERY_STRING """
         role_id = REQUEST.form.get('role_id', None)
         subroles = REQUEST.form.get('subroles', None) in [True, 'true', 'True']
         if not REQUEST.AUTHENTICATED_USER:
             raise Unauthorized("You are not allowed to manage members in %s" %
                                role_id)
         if subroles:
-            filename = "%s_all_members.xls" % str(role_id)
+            filename = "%s_all_members.xlsx" % str(role_id)
         else:
-            filename = "%s_members.xls" % str(role_id)
+            filename = "%s_members.xlsx" % str(role_id)
         REQUEST.RESPONSE.setHeader('Content-Type', 'application/vnd.ms-excel')
         REQUEST.RESPONSE.setHeader('Content-Disposition',
                                    "attachment;filename=%s" % filename)
@@ -1803,7 +1803,7 @@ class ExportExcel(BrowserView):
         RESPONSE.setHeader('Pragma', 'public')
         RESPONSE.setHeader('Cache-Control', 'max-age=0')
         RESPONSE.addHeader("content-disposition",
-                           "attachment; filename=roles_export-%s.xls" %
+                           "attachment; filename=roles_export-%s.xlsx" %
                            this_role_id)
 
         return out

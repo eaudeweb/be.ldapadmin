@@ -1,7 +1,8 @@
-import xlwt
+import xlsxwriter
 import logging
 import urllib
 from StringIO import StringIO
+from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
@@ -52,29 +53,26 @@ def excel_headers_to_object(properties):
 
 
 def generate_excel(header, rows):
-    style = xlwt.XFStyle()
-    wrapstyle = xlwt.XFStyle()
-    wrapstyle.alignment.wrap = 1
-    normalfont = xlwt.Font()
-    headerfont = xlwt.Font()
-    headerfont.bold = True
-    style.font = headerfont
+    output = BytesIO()
+    wb = xlsxwriter.Workbook(output, {'in_memory': True})
+    ws = wb.add_worksheet('Sheet 1')
+    ws.set_column('A:G', 30)
+    ws.set_column(1, 1, 20)
+    ws.set_column(2, 2, 50)
+    ws.set_column(3, 4, 20)
+    style = wb.add_format()
+    bold = wb.add_format({'bold': True})
+    wrapstyle = wb.add_format({'text_wrap': True})
 
-    wb = xlwt.Workbook(encoding='utf-8')
-    ws = wb.add_sheet('Sheet 1')
     row = 0
     for col in range(0, len(header)):
-        ws.col(col).width = 256 * 50
-    for col in range(0, len(header)):
-        ws.row(row).set_cell_text(col, header[col], style)
-    style.font = normalfont
+        ws.write(row, col, header[col].decode('utf-8'), bold)
     for item in rows:
         row += 1
         for col in range(0, len(item)):
             if '\n' in item[col]:
-                ws.row(row).set_cell_text(col, item[col], wrapstyle)
+                ws.write(row, col, item[col].decode('utf-8'), wrapstyle)
             else:
-                ws.row(row).set_cell_text(col, item[col], style)
-    output = StringIO()
-    wb.save(output)
+                ws.write(row, col, item[col].decode('utf-8'), style)
+    wb.close()
     return output.getvalue()
