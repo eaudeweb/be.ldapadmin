@@ -1,7 +1,8 @@
-import xlwt
+import xlsxwriter
 import logging
 import urllib
-from StringIO import StringIO
+from io import BytesIO
+from naaya.core.utils import force_to_unicode
 
 logger = logging.getLogger(__name__)
 
@@ -51,34 +52,85 @@ def excel_headers_to_object(properties):
     }
 
 
-def generate_excel(header, rows, fiddle_workbook=None):
-    style = xlwt.XFStyle()
-    wrapstyle = xlwt.XFStyle()
-    wrapstyle.alignment.wrap = 1
-    normalfont = xlwt.Font()
-    headerfont = xlwt.Font()
-    headerfont.bold = True
-    style.font = headerfont
+def merge_cells_by_column(wb, ws, rows, merge_columns):
+    """
+    Merge cells in specified columns where consecutive rows have the same value.
 
-    wb = xlwt.Workbook(encoding='utf-8')
-    ws = wb.add_sheet('Sheet 1')
+    Args:
+        wb: xlsxwriter Workbook object
+        ws: xlsxwriter Worksheet object
+        rows: List of row data
+        merge_columns: List of column indices to merge
+    """
+    # Create centered format for merged cells
+    style_center = wb.add_format({
+        'align': 'center',
+        'valign': 'vcenter'
+    })
+
+    current_slice_start = 0
+    len_rows = len(rows)
+    for i in range(0, len_rows):
+        current_role = rows[i][0]
+        next_role = rows[i+1][0] if i + 1 < len_rows else None
+        if next_role != current_role:
+            current_slice_end = i
+
+            # account for header row (add offset)
+            offset_slice_range_start = current_slice_start + 1
+            offset_slice_range_end = current_slice_end + 1
+
+            for col_idx in merge_columns:
+                # Ensure the value is unicode for xlsxwriter
+                cell_value = force_to_unicode(rows[i][col_idx])
+
+                if offset_slice_range_start == offset_slice_range_end:
+                    # Single cell, just write it
+                    ws.write(offset_slice_range_start, col_idx,
+                           cell_value, style_center)
+                else:
+                    # Merge multiple cells
+                    ws.merge_range(
+                        offset_slice_range_start, col_idx,
+                        offset_slice_range_end, col_idx,
+                        cell_value,
+                        style_center
+                    )
+
+            # start next slice at next row
+            current_slice_start = i + 1
+
+
+def generate_excel(header, rows, fiddle_workbook=None):
+    output = BytesIO()
+    wb = xlsxwriter.Workbook(output, {'in_memory': True})
+    ws = wb.add_worksheet('Sheet 1')
+
+    # Define formats
+    header_format = wb.add_format({'bold': True})
+    wrap_format = wb.add_format({'text_wrap': True})
+
+    # Set column widths
+    for col in range(0, len(header)):
+        ws.set_column(col, col, 35)
+
+    # Write header row
     row = 0
     for col in range(0, len(header)):
-        ws.col(col).width = 256 * 50
-    for col in range(0, len(header)):
-        ws.row(row).set_cell_text(col, header[col], style)
-    style.font = normalfont
+        ws.write(row, col, force_to_unicode(header[col]), header_format)
+
+    # Write data rows
     for item in rows:
         row += 1
         for col in range(0, len(item)):
-            if '\n' in item[col]:
-                ws.row(row).set_cell_text(col, item[col], wrapstyle)
+            value = force_to_unicode(item[col])
+            if '\n' in value:
+                ws.write(row, col, value, wrap_format)
             else:
-                ws.row(row).set_cell_text(col, item[col], style)
+                ws.write(row, col, value)
 
     if fiddle_workbook:
         fiddle_workbook(wb)
-    
-    output = StringIO()
-    wb.save(output)
+
+    wb.close()
     return output.getvalue()

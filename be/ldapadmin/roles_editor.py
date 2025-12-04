@@ -7,7 +7,7 @@ import logging
 import operator
 import os
 import re
-from StringIO import StringIO
+from io import BytesIO, StringIO
 from collections import defaultdict
 from string import ascii_lowercase, digits
 from zope.component import getMultiAdapter
@@ -28,9 +28,9 @@ import colander
 import deform
 import query
 import xlrd
-import xlwt
+import xlsxwriter
 from be.ldapadmin import ldap_config
-from be.ldapadmin.import_export import generate_excel
+from be.ldapadmin.import_export import generate_excel, merge_cells_by_column
 from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import NaayaViewPageTemplateFile
 from be.ldapadmin.ui_common import SessionMessages, TemplateRenderer
@@ -1092,10 +1092,10 @@ class RolesEditor(Folder):
             raise Unauthorized("You are not allowed to manage members in %s" %
                                role_id)
         if subroles:
-            filename = "%s_all_members.xls" % str(role_id)
+            filename = "%s_all_members.xlsx" % str(role_id)
         else:
-            filename = "%s_members.xls" % str(role_id)
-        REQUEST.RESPONSE.setHeader('Content-Type', 'application/vnd.ms-excel')
+            filename = "%s_members.xlsx" % str(role_id)
+        REQUEST.RESPONSE.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         REQUEST.RESPONSE.setHeader('Content-Disposition',
                                    "attachment;filename=%s" % filename)
         header = ('Name', 'User ID', 'Email', 'Tel', 'Fax', 'Postal Address',
@@ -1147,46 +1147,14 @@ class RolesEditor(Folder):
                 ])
 
         def fiddle_workbook(wb):
-            style_center = xlwt.XFStyle()
-            align_center = xlwt.Alignment()
-            align_center.horz = xlwt.Alignment.HORZ_CENTER
-            align_center.vert = xlwt.Alignment.VERT_CENTER
-            style_center.alignment = align_center
-
-            ws = wb.get_sheet(0)
-            # enable cell overwrite, otherwise merge will fail
-            ws._cell_overwrite_ok = True
-
+            ws = wb.get_worksheet_by_name('Sheet 1')
             merge_columns = [
                 0, # name
                 1, # description
                 2, # status
                 3, # deactivated
             ]
-
-            current_slice_start = 0
-            len_rows = len(rows)
-            for i in range(0, len_rows):
-                current_role = rows[i][0]
-                next_role = rows[i+1][0] if i + 1 < len_rows else None
-                if next_role != current_role:
-                    current_slice_end = i
-
-                    # account for XLS header row (add offset)
-                    offset_slice_range_start = current_slice_start + 1
-                    offset_slice_range_end = current_slice_end + 1
-
-                    for col_idx in merge_columns:
-                        ws.write_merge(
-                            offset_slice_range_start,
-                            offset_slice_range_end,
-                            col_idx, col_idx,
-                            rows[i][col_idx],
-                           style_center,
-                        )
-
-                    # start next slice at next row
-                    current_slice_start = i + 1
+            merge_cells_by_column(wb, ws, rows, merge_columns)
 
         rows.sort(key=lambda x: x[0])  # sort by name
         return generate_excel(header, rows, fiddle_workbook)
@@ -1920,23 +1888,17 @@ class ExportExcel(BrowserView):
             user_ids = agent.members_in_role_and_subroles(role_id)['users']
             roles[role_id] = user_ids
 
-        wb = xlwt.Workbook()
-        roles_sheet = wb.add_sheet("Roles")
+        out = BytesIO()
+        wb = xlsxwriter.Workbook(out, {'in_memory': True})
+        roles_sheet = wb.add_worksheet("Roles")
 
-        style_header = xlwt.XFStyle()
-        style_org_header = xlwt.XFStyle()
-        style_normal = xlwt.XFStyle()
-
-        normalfont = xlwt.Font()
-        headerfont = xlwt.Font()
-        headerfont.bold = True
-        biggerheaderfont = xlwt.Font()
-        biggerheaderfont.bold = True
-        biggerheaderfont.height = int(biggerheaderfont.height * 1.3)
-
-        style_header.font = headerfont
-        style_normal.font = normalfont
-        style_org_header.font = biggerheaderfont
+        # Create formats
+        style_header = wb.add_format({'bold': True})
+        style_org_header = wb.add_format({
+            'bold': True,
+            'font_size': 13
+        })
+        style_normal = wb.add_format({})
 
         cols = [
             'role_id',
@@ -1946,7 +1908,7 @@ class ExportExcel(BrowserView):
         for i, col in enumerate(cols):
             roles_sheet.write(0, i, col.capitalize(), style_header)
 
-        roles_sheet.col(0).set_width(14000)
+        roles_sheet.set_column(0, 0, 50)  # Set width of first column
 
         i = 1
         for role_id in sorted(roles.keys()):
@@ -1956,19 +1918,18 @@ class ExportExcel(BrowserView):
                 roles_sheet.write(i, 1, user_id, style_normal)
                 i += 1
 
-        out = StringIO()
-        wb.save(out)
+        wb.close()
         out.seek(0)
         out = out.read()
 
         RESPONSE = self.request.RESPONSE
 
-        RESPONSE.setHeader('Content-Type', "application/vnd.ms-excel")
+        RESPONSE.setHeader('Content-Type', "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         RESPONSE.setHeader('Content-Length', len(out))
         RESPONSE.setHeader('Pragma', 'public')
         RESPONSE.setHeader('Cache-Control', 'max-age=0')
         RESPONSE.addHeader("content-disposition",
-                           "attachment; filename=roles_export-%s.xls" %
+                           "attachment; filename=roles_export-%s.xlsx" %
                            this_role_id)
 
         return out
