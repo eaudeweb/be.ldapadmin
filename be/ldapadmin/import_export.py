@@ -82,7 +82,8 @@ def sort_rows_by_group(rows, merge_columns, sort_by_column):
 
 def merge_cells_by_column(wb, ws, rows, merge_columns):
     """
-    Applies cell merging to the worksheet for specified columns.
+    Applies cell merging to the worksheet for specified columns and draws a border
+    around each merged section (including non-merged columns in the same rows).
     This should be called AFTER data has been written to the worksheet via fiddle_workbook callback.
 
     Args:
@@ -101,6 +102,8 @@ def merge_cells_by_column(wb, ws, rows, merge_columns):
     # Apply merging to the worksheet (after data has been written)
     current_slice_start = 0
     len_rows = len(rows)
+    num_cols = len(rows[0]) if rows else 0
+
     for i in range(0, len_rows):
         current_role = rows[i][0]
         next_role = rows[i+1][0] if i + 1 < len_rows else None
@@ -111,6 +114,7 @@ def merge_cells_by_column(wb, ws, rows, merge_columns):
             offset_slice_range_start = current_slice_start + 1
             offset_slice_range_end = current_slice_end + 1
 
+            # Merge cells in specified columns
             for col_idx in merge_columns:
                 # Ensure the value is unicode for xlsxwriter
                 cell_value = force_to_unicode(rows[i][col_idx])
@@ -127,6 +131,30 @@ def merge_cells_by_column(wb, ws, rows, merge_columns):
                         cell_value,
                         style_center
                     )
+
+            # Draw border around the entire merged section
+            # Top border
+            for col in range(num_cols):
+                ws.conditional_format(offset_slice_range_start, col,
+                                    offset_slice_range_start, col,
+                                    {'type': 'formula', 'criteria': 'True',
+                                     'format': wb.add_format({'top': 1})})
+            # Bottom border
+            for col in range(num_cols):
+                ws.conditional_format(offset_slice_range_end, col,
+                                    offset_slice_range_end, col,
+                                    {'type': 'formula', 'criteria': 'True',
+                                     'format': wb.add_format({'bottom': 1})})
+            # Left border
+            ws.conditional_format(offset_slice_range_start, 0,
+                                offset_slice_range_end, 0,
+                                {'type': 'formula', 'criteria': 'True',
+                                 'format': wb.add_format({'left': 1})})
+            # Right border
+            ws.conditional_format(offset_slice_range_start, num_cols - 1,
+                                offset_slice_range_end, num_cols - 1,
+                                {'type': 'formula', 'criteria': 'True',
+                                 'format': wb.add_format({'right': 1})})
 
             # start next slice at next row
             current_slice_start = i + 1
