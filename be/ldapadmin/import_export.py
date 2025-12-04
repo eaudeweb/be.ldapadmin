@@ -52,22 +52,53 @@ def excel_headers_to_object(properties):
     }
 
 
+def sort_rows_by_group(rows, merge_columns, sort_by_column):
+    """
+    Sorts rows within merged groups by a specified column (case-insensitive).
+    This modifies the rows list in place.
+
+    Args:
+        rows: List of row data (will be modified in place)
+        merge_columns: List of column indices that define groups
+        sort_by_column: Column index to sort by within each group
+    """
+    sorted_rows = []
+    current_slice_start = 0
+    len_rows = len(rows)
+
+    for i in range(len_rows):
+        current_group_key = tuple(rows[i][col] for col in merge_columns)
+        next_group_key = tuple(rows[i+1][col] for col in merge_columns) if i + 1 < len_rows else None
+
+        if next_group_key != current_group_key:
+            # Sort the slice by the specified column (case-insensitive)
+            slice_to_sort = rows[current_slice_start:i+1]
+            slice_to_sort.sort(key=lambda x: x[sort_by_column].lower())
+            sorted_rows.extend(slice_to_sort)
+            current_slice_start = i + 1
+
+    rows[:] = sorted_rows
+
+
 def merge_cells_by_column(wb, ws, rows, merge_columns):
     """
-    Merge cells in specified columns where consecutive rows have the same value.
+    Applies cell merging to the worksheet for specified columns.
+    This should be called AFTER data has been written to the worksheet via fiddle_workbook callback.
 
     Args:
         wb: xlsxwriter Workbook object
         ws: xlsxwriter Worksheet object
-        rows: List of row data
+        rows: List of row data (already sorted)
         merge_columns: List of column indices to merge
     """
     # Create centered format for merged cells
     style_center = wb.add_format({
         'align': 'center',
-        'valign': 'vcenter'
+        'valign': 'vcenter',
+        'text_wrap': True
     })
 
+    # Apply merging to the worksheet (after data has been written)
     current_slice_start = 0
     len_rows = len(rows)
     for i in range(0, len_rows):
@@ -107,7 +138,7 @@ def generate_excel(header, rows, fiddle_workbook=None):
     ws = wb.add_worksheet('Sheet 1')
 
     # Define formats
-    header_format = wb.add_format({'bold': True})
+    header_format = wb.add_format({'bold': True, 'text_wrap': True})
     wrap_format = wb.add_format({'text_wrap': True})
 
     # Set column widths
@@ -124,11 +155,10 @@ def generate_excel(header, rows, fiddle_workbook=None):
         row += 1
         for col in range(0, len(item)):
             value = force_to_unicode(item[col])
-            if '\n' in value:
-                ws.write(row, col, value, wrap_format)
-            else:
-                ws.write(row, col, value)
+            ws.write(row, col, value, wrap_format)
 
+    # Call fiddle_workbook after writing data (if provided)
+    # This allows the callback to apply cell merging and other formatting
     if fiddle_workbook:
         fiddle_workbook(wb)
 

@@ -30,7 +30,7 @@ import query
 import xlrd
 import xlsxwriter
 from be.ldapadmin import ldap_config
-from be.ldapadmin.import_export import generate_excel, merge_cells_by_column
+from be.ldapadmin.import_export import generate_excel, merge_cells_by_column, sort_rows_by_group
 from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import NaayaViewPageTemplateFile
 from be.ldapadmin.ui_common import SessionMessages, TemplateRenderer
@@ -1098,10 +1098,8 @@ class RolesEditor(Folder):
         REQUEST.RESPONSE.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
         REQUEST.RESPONSE.setHeader('Content-Disposition',
                                    "attachment;filename=%s" % filename)
-        header = ('Name', 'User ID', 'Email', 'Tel', 'Fax', 'Postal Address',
-                  'Organisation', )
+        header = ('Name', 'Email', 'Organisation', )
         header = (
-             'Role',
              'Role description',
              'Role status',
              'Role deactivated',
@@ -1124,9 +1122,7 @@ class RolesEditor(Folder):
         rows = []
         for u_id in keys:
             usr = members['users'][u_id]
-            row = [usr['full_name'], usr['id'], usr['email'],
-                   usr['phone'], usr['fax'], usr['postal_address'],
-                   usr['organisation']]
+            row = [usr['full_name'], usr['email'], usr['organisation']]
 
             user_roles = usr.get('roles', [role_id])
 
@@ -1138,7 +1134,6 @@ class RolesEditor(Folder):
                 rows.append([
                     value.encode('utf-8')
                     for value in [
-                        role,
                         role_info["postalAddress"],
                         role_info['postOfficeBox'],
                         str(role_info['isDeactivated']),
@@ -1146,17 +1141,20 @@ class RolesEditor(Folder):
                      ] + row
                 ])
 
+        rows.sort(key=lambda x: x[0])  # sort by role description first
+
+        # Sort within each role group by name (column 4)
+        merge_columns = [
+            0, # description
+            1, # status
+            2, # deactivated
+        ]
+        sort_rows_by_group(rows, merge_columns, sort_by_column=4)
+
         def fiddle_workbook(wb):
             ws = wb.get_worksheet_by_name('Sheet 1')
-            merge_columns = [
-                0, # name
-                1, # description
-                2, # status
-                3, # deactivated
-            ]
             merge_cells_by_column(wb, ws, rows, merge_columns)
 
-        rows.sort(key=lambda x: x[0])  # sort by name
         return generate_excel(header, rows, fiddle_workbook)
 
     security.declareProtected(view, 'edit_owners')
