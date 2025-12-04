@@ -133,28 +133,65 @@ def merge_cells_by_column(wb, ws, rows, merge_columns):
                     )
 
             # Draw border around the entire merged section
-            # Top border
-            for col in range(num_cols):
-                ws.conditional_format(offset_slice_range_start, col,
-                                    offset_slice_range_start, col,
-                                    {'type': 'formula', 'criteria': 'True',
-                                     'format': wb.add_format({'top': 1})})
-            # Bottom border
-            for col in range(num_cols):
-                ws.conditional_format(offset_slice_range_end, col,
-                                    offset_slice_range_end, col,
-                                    {'type': 'formula', 'criteria': 'True',
-                                     'format': wb.add_format({'bottom': 1})})
-            # Left border
+            # Create border formats for different positions
+            fmt_top_left = wb.add_format({'top': 1, 'left': 1, 'text_wrap': True})
+            fmt_top = wb.add_format({'top': 1, 'text_wrap': True})
+            fmt_top_right = wb.add_format({'top': 1, 'right': 1, 'text_wrap': True})
+            fmt_left = wb.add_format({'left': 1, 'text_wrap': True})
+            fmt_right = wb.add_format({'right': 1, 'text_wrap': True})
+            fmt_bottom_left = wb.add_format({'bottom': 1, 'left': 1, 'text_wrap': True})
+            fmt_bottom = wb.add_format({'bottom': 1, 'text_wrap': True})
+            fmt_bottom_right = wb.add_format({'bottom': 1, 'right': 1, 'text_wrap': True})
+
+            # Apply borders using conditional formatting
+            # Top-left corner
             ws.conditional_format(offset_slice_range_start, 0,
+                                offset_slice_range_start, 0,
+                                {'type': 'formula', 'criteria': 'True',
+                                 'format': fmt_top_left})
+            # Top edge (excluding corners)
+            if num_cols > 2:
+                ws.conditional_format(offset_slice_range_start, 1,
+                                    offset_slice_range_start, num_cols - 2,
+                                    {'type': 'formula', 'criteria': 'True',
+                                     'format': fmt_top})
+            # Top-right corner
+            if num_cols > 1:
+                ws.conditional_format(offset_slice_range_start, num_cols - 1,
+                                    offset_slice_range_start, num_cols - 1,
+                                    {'type': 'formula', 'criteria': 'True',
+                                     'format': fmt_top_right})
+
+            # Middle rows (if any)
+            if offset_slice_range_end > offset_slice_range_start:
+                # Left edge
+                ws.conditional_format(offset_slice_range_start + 1, 0,
+                                    offset_slice_range_end - 1, 0,
+                                    {'type': 'formula', 'criteria': 'True',
+                                     'format': fmt_left})
+                # Right edge
+                ws.conditional_format(offset_slice_range_start + 1, num_cols - 1,
+                                    offset_slice_range_end - 1, num_cols - 1,
+                                    {'type': 'formula', 'criteria': 'True',
+                                     'format': fmt_right})
+
+            # Bottom-left corner
+            ws.conditional_format(offset_slice_range_end, 0,
                                 offset_slice_range_end, 0,
                                 {'type': 'formula', 'criteria': 'True',
-                                 'format': wb.add_format({'left': 1})})
-            # Right border
-            ws.conditional_format(offset_slice_range_start, num_cols - 1,
-                                offset_slice_range_end, num_cols - 1,
-                                {'type': 'formula', 'criteria': 'True',
-                                 'format': wb.add_format({'right': 1})})
+                                 'format': fmt_bottom_left})
+            # Bottom edge (excluding corners)
+            if num_cols > 2:
+                ws.conditional_format(offset_slice_range_end, 1,
+                                    offset_slice_range_end, num_cols - 2,
+                                    {'type': 'formula', 'criteria': 'True',
+                                     'format': fmt_bottom})
+            # Bottom-right corner
+            if num_cols > 1:
+                ws.conditional_format(offset_slice_range_end, num_cols - 1,
+                                    offset_slice_range_end, num_cols - 1,
+                                    {'type': 'formula', 'criteria': 'True',
+                                     'format': fmt_bottom_right})
 
             # start next slice at next row
             current_slice_start = i + 1
