@@ -39,7 +39,7 @@
 
         <a tal:attributes="href string:${common/base_url}/all_members?role_id=${role_id};
                              class python:'current help-tooltip' if page == 'role_all_members' else 'button help-tooltip';"
-           tal:condition="python: role_id and is_auth"
+           tal:condition="python: role_id and is_auth and page != 'role_all_members'"
            original-title="List all subroles members"
            title="" class="button">
           <img src="/++resource++be.ldapadmin-www/users.png"
@@ -71,7 +71,7 @@
           </a>
         </tal:block>
 
-        <a tal:condition="python:role_id and is_auth and page == 'role_all_members'"
+        <a tal:condition="python:role_id and is_auth"
            tal:attributes="href string:${common/base_url}/export_members?role_id=${role_id}&subroles=True;
                            class string:button help-tooltip;
                            original-title string: Export all members from ${role_id} and its subroles">
