@@ -72,7 +72,7 @@
 
                     <div id="advanced_edit_form">
                         <textarea 
-                            name="users:utf8:ustring" 
+                            name="users:utf8:string" 
                             tal:content="python:'\n'.join([x.split('-')[0] for x in options['form_data']['users']])">
                         </textarea>
                         <button id="save_advanced_members"><span class="fa fa-save"></span> Save</button>

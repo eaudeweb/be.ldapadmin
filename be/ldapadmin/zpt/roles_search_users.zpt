@@ -5,7 +5,7 @@
 <form name="search-users">
   <label>
     name:
-    <input type="search" name="name:ustring:utf8" autofocus="autofocus"
+    <input type="search" name="name:string:utf8" autofocus="autofocus"
            tal:attributes="value options/search_name" />
   </label>
   <input type="submit" value="Search" />

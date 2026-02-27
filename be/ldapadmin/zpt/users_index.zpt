@@ -23,13 +23,13 @@
       <label for="search-query">
           Search for:
       </label>
-      <input type="search" name="name:ustring:utf8" id="search-query"
+      <input type="search" name="name:string:utf8" id="search-query"
              class="text-input medium"
              tal:attributes="value options/search_name|string:"/>
       <label for="lookup">
         in
       </label>
-      <select id="lookup" name="lookup:list:utf8:ustring" class="select-box">
+      <select id="lookup" name="lookup:list:utf8:string" class="select-box">
         <option tal:attributes="selected python:('all' in options['lookup'] or not options['lookup']) and 'selected' or ''"
                 value="all">All fields</option>
         <option tal:repeat="field options/search_fields"

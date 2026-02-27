@@ -56,7 +56,7 @@ function selectAll(name, additional_class){
 				jQuery("#confirmation_email").show('blind', {}, 800);
 				jQuery.post(
 					'confirmation_email',
-					{'first_name:utf8:ustring': jQuery("#edit-first_name").val(),
+					{'first_name:utf8:string': jQuery("#edit-first_name").val(),
 					 user_id: jQuery("#edit-id").val()},
 					 function(data){
 						jQuery("#confirmation_email pre").text(data);
@@ -86,9 +86,9 @@ function selectAll(name, additional_class){
 			$.post('edit_role_name',
 				{
 					role_id: role_id,
-					'role_name:utf8:ustring': role_name,
-					'role_description:utf8:ustring': role_description,
-					'role_status:utf8:ustring': role_status,
+					'role_name:utf8:string': role_name,
+					'role_description:utf8:string': role_description,
+					'role_status:utf8:string': role_status,
 				},
 				function(data){
 					console.log(data);

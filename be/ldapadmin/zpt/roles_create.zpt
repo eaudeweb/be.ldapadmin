@@ -29,7 +29,7 @@
         <td>
           <tt tal:condition="options/parent_id"
               tal:content="string:${options/parent_id}-" />
-          <input type="text" id="name" name="slug:utf8:ustring"
+          <input type="text" id="name" name="slug:utf8:string"
                  class="text-input medium"
                  title="Role ID must contain only lowercase latin letters. (e.g. roleid)"
            tal:attributes="value options/form_data/slug|nothing"/>
@@ -45,7 +45,7 @@
         </td>
         
         <td>
-          <input type="text" name="description:utf8:ustring" id="description"
+          <input type="text" name="description:utf8:string" id="description"
                  class="text-input medium"
            tal:attributes="value options/form_data/description|nothing"/>
         </td>

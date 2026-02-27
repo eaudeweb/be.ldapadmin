@@ -140,7 +140,7 @@
         Name of user:
       </label>
       <br />
-      <input type="search" name="name:ustring:utf8" id="search-query"
+      <input type="search" name="name:string:utf8" id="search-query"
              class="text-input large"
              tal:attributes="value options/search_name|nothing"/>
 

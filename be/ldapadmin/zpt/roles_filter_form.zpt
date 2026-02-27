@@ -14,7 +14,7 @@
       </span>
   </span>
   <br />
-  <input id="search-roles-input" type="search" name="pattern:utf8:ustring"
+  <input id="search-roles-input" type="search" name="pattern:utf8:string"
          class="text-input large" autofocus="autofocus"
          tal:attributes="value options/pattern|nothing"/>
   <input type="submit" value="Search roles"

@@ -90,7 +90,7 @@
         <script>$(function() {
             var frm = $('form[name="create-account"]');
 
-            var literal_input = $('input[name="org_literal:utf8:ustring"]', frm);
+            var literal_input = $('input[name="org_literal:utf8:string"]', frm);
             var choose_literal = function() {
             $('input[name="org_type"][value="literal"]').attr('checked', true);
             };
@@ -128,7 +128,7 @@
                         tal:attributes="id field_id;
                         class python:' '.join(input_classes +
                         ['text-input', 'large']);
-                        name string:${field/name}:utf8:ustring;
+                        name string:${field/name}:utf8:string;
                         value field/value" />
                     <input type="checkbox" tal:condition="is_checkbox" class="account-checkbox"
                         tal:attributes="id field_id; name field_id" />
@@ -137,11 +137,11 @@
                         tal:attributes="id field_id;
                         class python:' '.join(input_classes +
                         ['account-textarea', 'large']);
-                        name string:${field/name}:utf8:ustring"
+                        name string:${field/name}:utf8:string"
                         tal:content="field/value"></textarea>
                     <select tal:condition="is_select"
                         tal:attributes="id field_id;
-                        name string:${field/name}:utf8:ustring"
+                        name string:${field/name}:utf8:string"
                         multiple >
                         <tal:def tal:define="choices python:field['widget'].values">
                             <option

@@ -8,7 +8,7 @@
   <input type="hidden" name="id" tal:attributes="value options/org_id"/>
   <label>
     Name of user:
-    <input type="search" name="search_query:utf8:ustring" autofocus="autofocus"
+    <input type="search" name="search_query:utf8:string" autofocus="autofocus"
            tal:attributes="value options/search_query"/>
   </label>
   <input type="submit" value="Search"/>

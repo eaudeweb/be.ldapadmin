@@ -12,7 +12,7 @@
 
   <tr tal:condition="create_mode">
     <td><label for="edit-id">Organisation id:</label></td>
-    <td><input id="edit-id" type="text" name="id:utf8:ustring" size="50" class="text-input"
+    <td><input id="edit-id" type="text" name="id:utf8:string" size="50" class="text-input"
       tal:attributes="value form_data/id|nothing" /></td>
   </tr>
   <tal:block condition="not:create_mode">
@@ -22,19 +22,19 @@
 
   <tr>
     <td><label for="edit-name">Name:</label></td>
-    <td><input id="edit-name" type="text" name="name:utf8:ustring" size="50"
+    <td><input id="edit-name" type="text" name="name:utf8:string" size="50"
                tal:attributes="value form_data/name|string:" class="text-input" /></td>
   </tr>
 
 <!--  <tr>
     <td><label for="edit-name">Name in national language:</label></td>
-    <td><input id="edit-name" type="text" name="name_native:utf8:ustring" size="50"
+    <td><input id="edit-name" type="text" name="name_native:utf8:string" size="50"
                tal:attributes="value form_data/name_native|string:" class="text-input" /></td>
   </tr>-->
 
   <tr>
     <td><label for="edit-email">Email:</label></td>
-    <td><input id="edit-email" type="text" name="email:utf8:ustring"
+    <td><input id="edit-email" type="text" name="email:utf8:string"
                class="text-input"
                size="50"
                tal:attributes="value form_data/email|string:"/></td>
@@ -42,7 +42,7 @@
 
   <tr>
     <td><label for="edit-url">URL:</label></td>
-    <td><input id="edit-url" type="text" name="url:utf8:ustring"
+    <td><input id="edit-url" type="text" name="url:utf8:string"
                class="text-input"
                size="50"
                tal:attributes="value form_data/url|string:"/></td>
@@ -50,19 +50,19 @@
 
   <tr>
     <td><label for="edit-phone">Phone:</label></td>
-    <td><input id="edit-phone" type="text" name="phone:utf8:ustring" size="50"
+    <td><input id="edit-phone" type="text" name="phone:utf8:string" size="50"
                tal:attributes="value form_data/phone|string:" class="text-input" /></td>
   </tr>
 
   <tr>
     <td><label for="edit-fax">Fax:</label></td>
-    <td><input id="edit-fax" type="text" name="fax:utf8:ustring" size="50"
+    <td><input id="edit-fax" type="text" name="fax:utf8:string" size="50"
                tal:attributes="value form_data/fax|string:" class="text-input" /></td>
   </tr>
 
   <tr>
     <td><label for="edit-street">Street:</label></td>
-    <td><input id="edit-street" type="text" name="street:utf8:ustring"
+    <td><input id="edit-street" type="text" name="street:utf8:string"
                class="text-input"
                size="50"
                tal:attributes="value form_data/street|string:"/></td>
@@ -70,14 +70,14 @@
 
   <tr>
     <td><label for="edit-po_box">PO box:</label></td>
-    <td><input id="edit-po_box" type="text" name="po_box:utf8:ustring" size="50"
+    <td><input id="edit-po_box" type="text" name="po_box:utf8:string" size="50"
                class="text-input"
                tal:attributes="value form_data/po_box|string:"/></td>
   </tr>
 
   <tr>
     <td><label for="edit-postal_code">Postal code:</label></td>
-    <td><input id="edit-postal_code" type="text" name="postal_code:utf8:ustring"
+    <td><input id="edit-postal_code" type="text" name="postal_code:utf8:string"
                class="text-input"
                size="50"
                tal:attributes="value form_data/postal_code|string:"/></td>
@@ -85,7 +85,7 @@
 
   <tr>
     <td><label for="edit-locality">Locality:</label></td>
-    <td><input id="edit-locality" type="text" name="locality:utf8:ustring"
+    <td><input id="edit-locality" type="text" name="locality:utf8:string"
                class="text-input"
                size="50"
                tal:attributes="value form_data/locality|string:"/></td>
@@ -94,7 +94,7 @@
   <tr tal:define="countries options/countries">
     <td><label for="edit-country">Country:</label></td>
     <td>
-      <select name="country:utf8:ustring" id="edit-country"
+      <select name="country:utf8:string" id="edit-country"
         tal:condition="python:len(countries)>1">
         <option value=''> -- select country or EU -- </option>
         <option tal:repeat="country countries"
@@ -107,7 +107,7 @@
         define="country python:countries[0]">
           <tal:block content="python: '%s, %s' % (country[1]['name'],
               country[1]['pub_code'].upper())" />
-          <input type="hidden" name="country:utf8:ustring"
+          <input type="hidden" name="country:utf8:string"
               tal:attributes="value python:country[0]">
       </tal:block>
     </td>
@@ -115,7 +115,7 @@
 
   <!--<tr>
     <td><label for="edit-address">Full address:</label></td>
-    <td><textarea id="edit-address" name="postal_address:utf8:ustring"
+    <td><textarea id="edit-address" name="postal_address:utf8:string"
                   class="large"
                   rows="6" cols="30"
                   tal:content="form_data/postal_address|string:"></textarea></td>

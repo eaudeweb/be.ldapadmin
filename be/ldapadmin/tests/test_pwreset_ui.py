@@ -32,9 +32,9 @@ def decode_form(request):
     source = request.POST or request.GET
     for name in source:
         value = source[name]
-        if name.endswith(':utf8:ustring'):
+        if name.endswith(':utf8:string'):
             value = value.decode('utf-8')
-            name = name[:-(len(':utf8:ustring'))]
+            name = name[:-(len(':utf8:string'))]
         form[name] = value
     return form
 
@@ -133,7 +133,7 @@ class BrowseTest(unittest.TestCase):
         br = self.browser
         br.open('http://test/')
         br.select_form(name='identify')
-        br['email:utf8:ustring'] = "testpilot@example.com"
+        br['email:utf8:string'] = "testpilot@example.com"
         page = parse_html(br.submit().read())
 
         self.assertTrue("message has been sent" in csstext(page, 'p'))
@@ -151,7 +151,7 @@ class BrowseTest(unittest.TestCase):
         br = self.browser
         br.open('http://test/')
         br.select_form(name='identify')
-        br['email:utf8:ustring'] = "badtestpilot@example.com"
+        br['email:utf8:string'] = "badtestpilot@example.com"
         page = parse_html(br.submit().read())
 
         self.assertEqual(csstext(page, 'div.error-msg'),
@@ -168,8 +168,8 @@ class BrowseTest(unittest.TestCase):
         self.assertEqual(csstext(page, 'p tt'), 'teh-user')
 
         br.select_form(name='new-password')
-        br['password:utf8:ustring'] = "NeWpAsS"
-        br['password-confirm:utf8:ustring'] = "NeWpAsS"
+        br['password:utf8:string'] = "NeWpAsS"
+        br['password-confirm:utf8:string'] = "NeWpAsS"
         page = parse_html(br.submit().read())
 
         self.mock_agent.set_user_password.assert_called_once_with(
@@ -182,8 +182,8 @@ class BrowseTest(unittest.TestCase):
         br = self.browser
         br.open(link)
         br.select_form(name='new-password')
-        br['password:utf8:ustring'] = "NeWpAsS"
-        br['password-confirm:utf8:ustring'] = "blah"
+        br['password:utf8:string'] = "NeWpAsS"
+        br['password-confirm:utf8:string'] = "blah"
         page = parse_html(br.submit().read())
 
         self.assertEqual(csstext(page, 'div.error-msg'),
@@ -191,8 +191,8 @@ class BrowseTest(unittest.TestCase):
 
         # make sure the new form still works
         br.select_form(name='new-password')
-        br['password:utf8:ustring'] = "NeWpAsS"
-        br['password-confirm:utf8:ustring'] = "NeWpAsS"
+        br['password:utf8:string'] = "NeWpAsS"
+        br['password-confirm:utf8:string'] = "NeWpAsS"
         page = parse_html(br.submit().read())
         self.assertTrue("successfully reset" in csstext(page, 'p'))
 
@@ -216,8 +216,8 @@ class BrowseTest(unittest.TestCase):
         br = self.browser
         br.open(link)
         br.select_form(name='new-password')
-        br['password:utf8:ustring'] = "NeWpAsS"
-        br['password-confirm:utf8:ustring'] = "NeWpAsS"
+        br['password:utf8:string'] = "NeWpAsS"
+        br['password-confirm:utf8:string'] = "NeWpAsS"
         del self.ui._tokens[token]
         page = parse_html(br.submit().read())
 
@@ -246,8 +246,8 @@ class BrowseTest(unittest.TestCase):
         br = self.browser
         br.open(link)
         br.select_form(name='new-password')
-        br['password:utf8:ustring'] = "NeWpAsS"
-        br['password-confirm:utf8:ustring'] = "NeWpAsS"
+        br['password:utf8:string'] = "NeWpAsS"
+        br['password-confirm:utf8:string'] = "NeWpAsS"
 
         mock_datetime.utcnow.return_value = t0 + timedelta(days=1, minutes=1)
         page = parse_html(br.submit().read())
@@ -258,7 +258,7 @@ class BrowseTest(unittest.TestCase):
         br = self.browser
         br.open('http://test/')
         br.select_form(name='identify')
-        br['email:utf8:ustring'] = "testpilot@example.com"
+        br['email:utf8:string'] = "testpilot@example.com"
         br.submit()
         email = parse_email(self.mail[0])
         link = extract_link_from_email(email, 'http://test')
@@ -268,8 +268,8 @@ class BrowseTest(unittest.TestCase):
 
         page = parse_html(br.open(link).read())
         br.select_form(name='new-password')
-        br['password:utf8:ustring'] = "NeWpAsS"
-        br['password-confirm:utf8:ustring'] = "NeWpAsS"
+        br['password:utf8:string'] = "NeWpAsS"
+        br['password-confirm:utf8:string'] = "NeWpAsS"
         br.submit()
 
         self.assertFalse(token in self.ui._tokens)
@@ -278,15 +278,15 @@ class BrowseTest(unittest.TestCase):
         br = self.browser
         br.open('http://test/')
         br.select_form(name='identify')
-        br['email:utf8:ustring'] = "testpilot@example.com"
+        br['email:utf8:string'] = "testpilot@example.com"
         br.submit()
 
         email = parse_email(self.mail[0])
         link = extract_link_from_email(email, 'http://test')
         page = parse_html(br.open(link).read())
         br.select_form(name='new-password')
-        br['password:utf8:ustring'] = "NeWpAsS"
-        br['password-confirm:utf8:ustring'] = "NeWpAsS"
+        br['password:utf8:string'] = "NeWpAsS"
+        br['password-confirm:utf8:string'] = "NeWpAsS"
         page = parse_html(br.submit().read())
 
         self.mock_agent.set_user_password.assert_called_once_with(

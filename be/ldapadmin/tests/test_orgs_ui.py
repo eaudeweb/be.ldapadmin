@@ -87,18 +87,18 @@ class OrganisationsUITest(unittest.TestCase):
         # txt = lambda xp: page.xpath(xp)[0].text.strip()
         exists = lambda xp: len(page.xpath(xp)) > 0
         self.assertTrue(exists('//form//input[@name="id"]'))
-        self.assertTrue(exists('//form//input[@name="name:utf8:ustring"]'))
-        self.assertTrue(exists('//form//input[@name="url:utf8:ustring"]'))
-        self.assertTrue(exists('//form//input[@name="phone:utf8:ustring"]'))
-        self.assertTrue(exists('//form//input[@name="fax:utf8:ustring"]'))
-        self.assertTrue(exists('//form//input[@name="street:utf8:ustring"]'))
-        self.assertTrue(exists('//form//input[@name="po_box:utf8:ustring"]'))
+        self.assertTrue(exists('//form//input[@name="name:utf8:string"]'))
+        self.assertTrue(exists('//form//input[@name="url:utf8:string"]'))
+        self.assertTrue(exists('//form//input[@name="phone:utf8:string"]'))
+        self.assertTrue(exists('//form//input[@name="fax:utf8:string"]'))
+        self.assertTrue(exists('//form//input[@name="street:utf8:string"]'))
+        self.assertTrue(exists('//form//input[@name="po_box:utf8:string"]'))
         self.assertTrue(exists('//form//input'
-                               '[@name="postal_code:utf8:ustring"]'))
-        self.assertTrue(exists('//form//input[@name="locality:utf8:ustring"]'))
-        self.assertTrue(exists('//form//select[@name="country:utf8:ustring"]'))
+                               '[@name="postal_code:utf8:string"]'))
+        self.assertTrue(exists('//form//input[@name="locality:utf8:string"]'))
+        self.assertTrue(exists('//form//select[@name="country:utf8:string"]'))
         self.assertTrue(exists('//form//textarea'
-                               '[@name="postal_address:utf8:ustring"]'))
+                               '[@name="postal_address:utf8:string"]'))
 
     @patch('be.ldapadmin.orgs_editor.logged_in_user')
     def test_create_org_submit(self, logged_user):
@@ -129,8 +129,8 @@ class OrganisationsUITest(unittest.TestCase):
             if name == 'postal_address':
                 continue
             if name != 'id':
-                name += ':utf8:ustring'
-            if name == 'country:utf8:ustring':
+                name += ':utf8:string'
+            if name == 'country:utf8:string':
                 form_input = form.xpath(
                     './/select[@name="%s"]/option[@value="denmark"]' % name)
                 value = value.lower()
@@ -139,7 +139,7 @@ class OrganisationsUITest(unittest.TestCase):
 
             self.assertEqual(form_input[0].attrib['value'], value)
         form_input = form.xpath(
-            './/textarea[@name="postal_address:utf8:ustring"]')
+            './/textarea[@name="postal_address:utf8:string"]')
         self.assertEqual(form_input[0].text, org_info['postal_address'])
 
     @patch('be.ldapadmin.orgs_editor.validate_org_info')
@@ -179,13 +179,13 @@ class OrganisationsUITest(unittest.TestCase):
                          'bridge_club')
         for name, value in org_info_fixture.iteritems():
             if name == 'postal_address':
-                xp = '//textarea[@name="%s:utf8:ustring"]' % name
+                xp = '//textarea[@name="%s:utf8:string"]' % name
                 frm_value = form.xpath(xp)[0].text
             elif name == 'country':
-                xp = '//select[@name="%s:utf8:ustring"]/option' % name.lower()
+                xp = '//select[@name="%s:utf8:string"]/option' % name.lower()
                 frm_value = form.xpath(xp)[10].text.strip()
             else:
-                xp = '//input[@name="%s:utf8:ustring"]' % name
+                xp = '//input[@name="%s:utf8:string"]' % name
                 frm_value = form.xpath(xp)[0].attrib['value']
             self.assertEqual(frm_value, value)
 
@@ -455,7 +455,7 @@ class OrganisationsUIMembersTest(unittest.TestCase):
         form_search = page.xpath('//form[@name="search-users"]')[0]
         self.assertEqual(form_search.attrib['action'],
                          'URL/add_members_html')
-        _xp = './/input[@name="search_query:utf8:ustring"]'
+        _xp = './/input[@name="search_query:utf8:string"]'
         self.assertEqual(form_search.xpath(_xp)[0].attrib['value'], u"smith")
 
         form_add_members = page.xpath('//form[@name="add-members"]')[0]

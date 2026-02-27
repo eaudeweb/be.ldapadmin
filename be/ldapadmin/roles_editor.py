@@ -449,7 +449,7 @@ class RolesEditor(Folder):
                                               self._render_template)
             options['results_html'] = results_html
             options['csv_link'] = csv_url + '?pattern=' + pattern
-            pattern_url = search_url + '?pattern:utf8:ustring=' + pattern
+            pattern_url = search_url + '?pattern:utf8:string=' + pattern
             breadcrumbs += [(pattern, pattern_url)]
 
         self._set_breadcrumbs(breadcrumbs)

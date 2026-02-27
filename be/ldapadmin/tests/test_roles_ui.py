@@ -231,7 +231,7 @@ class CreateDeleteRolesTest(unittest.TestCase):
                          "URL/create_role")
         input_parent = page.xpath('//form//input[@name="parent_role_id"]')[0]
         self.assertEqual(input_parent.attrib['value'], 'places')
-        input_desc_xpath = '//form//input[@name="description:utf8:ustring"]'
+        input_desc_xpath = '//form//input[@name="description:utf8:string"]'
         self.assertEqual(len(page.xpath(input_desc_xpath)), 1)
 
     @patch('be.ldapadmin.roles_editor.logged_in_user')
@@ -282,8 +282,8 @@ class CreateDeleteRolesTest(unittest.TestCase):
         self.request.form = {'parent_role_id': 'places'}
         page = parse_html(self.ui.create_role_html(self.request))
 
-        role_id_xp = '//form//input[@name="slug:utf8:ustring"]'
-        role_desc_xp = '//form//input[@name="description:utf8:ustring"]'
+        role_id_xp = '//form//input[@name="slug:utf8:string"]'
+        role_desc_xp = '//form//input[@name="description:utf8:string"]'
         self.assertEqual(page.xpath(role_id_xp)[0].attrib['value'], 'SHINY')
         self.assertEqual(page.xpath(role_desc_xp)[0].attrib['value'],
                          "Shiny new role")
@@ -508,7 +508,7 @@ class UserSearchTest(unittest.TestCase):
 
         form = page.xpath('//form[@name="search-users"]')[0]
         self.assertEqual(
-            len(form.xpath('.//input[@name="name:ustring:utf8"]')), 1)
+            len(form.xpath('.//input[@name="name:string:utf8"]')), 1)
 
     def test_results(self):
         self.request.form = {'name': 'smith'}
