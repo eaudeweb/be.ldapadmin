@@ -5,7 +5,7 @@ import os.path
 import json
 import logging
 
-from constants import LDAP_DISK_STORAGE
+from .constants import LDAP_DISK_STORAGE
 
 logger = logging.getLogger(__name__)
 

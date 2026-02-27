@@ -2,7 +2,7 @@
 
 import unittest
 import logging
-from StringIO import StringIO
+from io import StringIO
 from lxml.html.soupparser import fromstring
 from mock import Mock, patch
 from be import ldapadmin

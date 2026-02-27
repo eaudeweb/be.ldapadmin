@@ -2,7 +2,7 @@ from AccessControl import ClassSecurityInfo
 from OFS.SimpleItem import SimpleItem
 from OFS.PropertyManager import PropertyManager
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
-from ui_common import TemplateRenderer, CommonTemplateLogic
+from .ui_common import TemplateRenderer, CommonTemplateLogic
 
 manage_add_query_html = PageTemplateFile('zpt/query_manage_add', globals())
 

@@ -5,11 +5,11 @@ import logging
 
 from AccessControl import ClassSecurityInfo
 from AccessControl.Permissions import view, view_management_screens
-from App.class_init import InitializeClass
+from AccessControl.class_init import InitializeClass
 from OFS.SimpleItem import SimpleItem
 
 from be.ldapadmin.constants import LDAP_DISK_STORAGE
-from ldapdump import dump_ldap
+from naaya.ldapdump.main import dump_ldap
 
 log = logging.getLogger(__name__)
 

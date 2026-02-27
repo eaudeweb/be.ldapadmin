@@ -13,7 +13,7 @@ import ldap
 import ldap.filter
 from ldap.ldapobject import LDAPObject
 from ldap.resiter import ResultProcessor
-from _backport import wraps
+from functools import wraps
 from be.ldapadmin.constants import LDAP_PROTOCOL
 from be.ldapadmin.logic_common import split_to_list
 

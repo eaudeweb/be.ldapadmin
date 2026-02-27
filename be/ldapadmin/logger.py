@@ -2,6 +2,7 @@
 
 import os
 import logging
+import logging.handlers
 
 from be.ldapadmin.constants import LDAP_DISK_STORAGE
 

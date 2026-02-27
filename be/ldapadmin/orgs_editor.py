@@ -8,11 +8,11 @@ import logging
 import operator
 import os
 import re
-from StringIO import StringIO
+from io import StringIO
 from AccessControl import ClassSecurityInfo
 from AccessControl.Permissions import view, view_management_screens
 from AccessControl.unauthorized import Unauthorized
-from App.class_init import InitializeClass
+from AccessControl.class_init import InitializeClass
 from App.config import getConfiguration
 import deform
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
@@ -22,7 +22,7 @@ from ldap import NO_SUCH_OBJECT
 from ldap import INVALID_DN_SYNTAX
 from persistent.mapping import PersistentMapping
 import ldap
-import ldap_config
+from . import ldap_config
 import xlwt
 from be.ldapadmin.db_agent import UserNotFound, NameAlreadyExists
 from be.ldapadmin.db_agent import OrgRenameError, editable_org_fields
@@ -679,7 +679,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         }
 
         if format == 'csv':
-            from StringIO import StringIO
+            from io import StringIO
             import csv
 
             output = StringIO()

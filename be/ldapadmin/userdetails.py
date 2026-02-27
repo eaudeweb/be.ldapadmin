@@ -5,13 +5,13 @@ import logging
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from zope.component import getMultiAdapter, getUtility
-from zope.component.interfaces import ComponentLookupError
+from zope.component import ComponentLookupError
 from zope.sendmail.interfaces import IMailDelivery
 from AccessControl import ClassSecurityInfo  # , Unauthorized
 from AccessControl.Permissions import view, view_management_screens
 from AccessControl.unauthorized import Unauthorized
 from DateTime import DateTime
-from image_processor import scale_to
+from .image_processor import scale_to
 from OFS.SimpleItem import SimpleItem
 from OFS.PropertyManager import PropertyManager
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile

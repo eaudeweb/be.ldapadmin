@@ -5,7 +5,7 @@ import re
 import logging
 from copy import deepcopy
 import csv
-from StringIO import StringIO
+from io import StringIO
 from mock import Mock, patch
 import lxml.cssselect
 import lxml.html.soupparser

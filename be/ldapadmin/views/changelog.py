@@ -1,7 +1,7 @@
 ''' changelog '''
 
 from zope.component import getMultiAdapter
-from zope.interface import Interface, Attribute, implements
+from zope.interface import Interface, Attribute, implementer
 from DateTime.DateTime import DateTime
 from Products.Five import BrowserView
 
@@ -17,11 +17,10 @@ class IActionDetails(Interface):
     details = Attribute("Action details in html format")
 
 
+@implementer(IActionDetails)
 class BaseActionDetails(BrowserView):
     """ Generic implementation of IActionDetails
     """
-
-    implements(IActionDetails)
 
     @property
     def action_title(self):

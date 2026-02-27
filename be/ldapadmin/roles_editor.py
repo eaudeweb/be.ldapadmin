@@ -15,7 +15,7 @@ from DateTime import DateTime
 from OFS.Folder import Folder
 from Products.Five.browser import BrowserView
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
-from App.class_init import InitializeClass
+from AccessControl.class_init import InitializeClass
 from App.config import getConfiguration
 from AccessControl import getSecurityManager
 from AccessControl.Permissions import view, view_management_screens
@@ -26,7 +26,7 @@ from lxml.html.soupparser import fromstring
 from persistent.mapping import PersistentMapping
 import colander
 import deform
-import query
+from . import query
 import xlrd
 import xlsxwriter
 from be.ldapadmin import ldap_config

@@ -1,9 +1,9 @@
 """ INIT for the LDAP administration tools """
 
-from db_agent import UsersDB, editable_user_fields, editable_org_fields
-from db_agent import (OrgRenameError, NameAlreadyExists, RoleNotFound,
+from .db_agent import UsersDB, editable_user_fields, editable_org_fields
+from .db_agent import (OrgRenameError, NameAlreadyExists, RoleNotFound,
                       UserNotFound)
-from schema import user_info_schema
+from .schema import user_info_schema
 
 
 __all__ = [UsersDB.__name__, editable_user_fields.__repr__(),
@@ -14,15 +14,15 @@ __all__ = [UsersDB.__name__, editable_user_fields.__repr__(),
 
 def initialize(context):
     ''' initialize '''
-    import roles_editor
-    import orgs_editor
-    import pwreset_tool
-    import users_admin
-    import api_tool
-    import dashboard
-    import logger
-    import countries
-    import userdetails
+    from . import roles_editor
+    from . import orgs_editor
+    from . import pwreset_tool
+    from . import users_admin
+    from . import api_tool
+    from . import dashboard
+    from . import logger
+    from . import countries
+    from . import userdetails
 
     countries.load_countries()
     logger.init()

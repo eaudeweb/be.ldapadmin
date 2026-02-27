@@ -8,7 +8,7 @@ import re
 import string
 from datetime import datetime
 from zope.component import getUtility
-from zope.component.interfaces import ComponentLookupError
+from zope.component import ComponentLookupError
 from zope.sendmail.interfaces import IMailDelivery
 from persistent.mapping import PersistentMapping
 from OFS.PropertyManager import PropertyManager
@@ -16,7 +16,7 @@ from OFS.SimpleItem import SimpleItem
 from AccessControl.Permissions import view, view_management_screens
 from AccessControl import ClassSecurityInfo
 from AccessControl.unauthorized import Unauthorized
-from App.class_init import InitializeClass
+from AccessControl.class_init import InitializeClass
 from Products.Five.browser import BrowserView
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 import colander

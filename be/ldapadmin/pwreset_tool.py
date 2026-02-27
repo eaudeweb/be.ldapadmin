@@ -8,12 +8,12 @@ import random
 from collections import namedtuple
 from datetime import datetime, timedelta
 from zope.component import getUtility
-from zope.component.interfaces import ComponentLookupError
+from zope.component import ComponentLookupError
 from zope.sendmail.interfaces import IMailDelivery
 from ldap import CONSTRAINT_VIOLATION, NO_SUCH_OBJECT, SCOPE_BASE
 from AccessControl import ClassSecurityInfo
 from AccessControl.Permissions import view, view_management_screens
-from App.class_init import InitializeClass
+from AccessControl.class_init import InitializeClass
 from OFS.SimpleItem import SimpleItem
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 from persistent.mapping import PersistentMapping
