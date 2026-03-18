@@ -472,7 +472,8 @@ class UsersDB(object):
             query_dn, ldap.SCOPE_ONELEVEL,
             filterstr='(objectClass=role)',
             attrlist=('description', 'owner', 'permittedSender',
-                      'permittedPerson', 'leaderMember', 'alternateLeader')
+                      'permittedPerson', 'leaderMember', 'alternateLeader',
+                      'l', 'postalAddress', 'postOfficeBox', 'businessCategory')
         )
 
         out = {}
@@ -1740,20 +1741,31 @@ class UsersDB(object):
         """
         Sets role postOfficeBox (or name) to `role_status`
         `role_status` must be unicode or ascii bytes
+        If role_status is empty, deletes the attribute
 
         """
         assert self._bound, "call `perform_bind` before `set_role_status`"
         log.info("Set postOfficeBox %r for role %r", role_status, role_id)
         role_dn = self._role_dn(role_id)
-        role_status_bytes = role_status.encode(self._encoding)
-        try:
-            self.conn.modify_s(role_dn, (
-                (ldap.MOD_REPLACE, 'postOfficeBox', [role_status_bytes]),
-            ))
-        except ldap.NO_SUCH_ATTRIBUTE:
-            self.conn.modify_s(role_dn, (
-                (ldap.MOD_ADD, 'postOfficeBox', [role_status_bytes]),
-            ))
+
+        if role_status == '' or role_status == u'':
+            # Delete the attribute when empty (corresponds to "-" option in UI)
+            try:
+                self.conn.modify_s(role_dn, (
+                    (ldap.MOD_DELETE, 'postOfficeBox', []),
+                ))
+            except ldap.NO_SUCH_ATTRIBUTE:
+                pass  # Attribute already doesn't exist
+        else:
+            role_status_bytes = role_status.encode(self._encoding)
+            try:
+                self.conn.modify_s(role_dn, (
+                    (ldap.MOD_REPLACE, 'postOfficeBox', [role_status_bytes]),
+                ))
+            except ldap.NO_SUCH_ATTRIBUTE:
+                self.conn.modify_s(role_dn, (
+                    (ldap.MOD_ADD, 'postOfficeBox', [role_status_bytes]),
+                ))
 
     @log_ldap_exceptions
     def set_role_address(self, role_id, address):
