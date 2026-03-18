@@ -1106,6 +1106,7 @@ class RolesEditor(Folder):
                                    "attachment;filename=%s" % filename)
         header = ('Name', 'Email', 'Organisation', )
         header = (
+             'Role ID',
              'Role description',
              'Role status',
              'Role deactivated',
@@ -1140,6 +1141,7 @@ class RolesEditor(Folder):
                 rows.append([
                     value.encode('utf-8')
                     for value in [
+                        role,
                         role_info["postalAddress"],
                         role_info['postOfficeBox'],
                         str(role_info['isDeactivated']),
@@ -1147,15 +1149,16 @@ class RolesEditor(Folder):
                      ] + row
                 ])
 
-        rows.sort(key=lambda x: x[0])  # sort by role description first
+        rows.sort(key=lambda x: x[0])  # sort by role id first
 
-        # Sort within each role group by name (column 4)
+        # Sort within each role group by name (column 5)
         merge_columns = [
-            0, # description
-            1, # status
-            2, # deactivated
+            0, # role id
+            1, # description
+            2, # status
+            3, # deactivated
         ]
-        sort_rows_by_group(rows, merge_columns, sort_by_column=4)
+        sort_rows_by_group(rows, merge_columns, sort_by_column=5)
 
         def fiddle_workbook(wb):
             ws = wb.get_worksheet_by_name('Sheet 1')
