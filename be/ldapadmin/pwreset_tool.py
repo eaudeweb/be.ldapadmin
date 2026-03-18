@@ -71,8 +71,8 @@ TokenData = namedtuple('TokenData', 'user_id timestamp')
 
 
 def random_token():
-    bits = hashlib.sha1(str(datetime.now()) + str(random.random())).digest()
-    return base64.urlsafe_b64encode(bits).replace('-', '')[:20]
+    bits = hashlib.sha1((str(datetime.now()) + str(random.random())).encode('ascii')).digest()
+    return base64.urlsafe_b64encode(bits).decode('ascii').replace('-', '')[:20]
 
 
 class PasswordResetTool(SimpleItem):
@@ -145,7 +145,7 @@ class PasswordResetTool(SimpleItem):
         }
         print(options['token_url'])
         message = _create_plain_message(
-            email_template(**options).encode('utf-8'))
+            email_template(**options))
         message['From'] = addr_from
         message['To'] = addr_to
         message['Subject'] = "%s account password recovery" % NETWORK_NAME
@@ -222,7 +222,7 @@ class PasswordResetTool(SimpleItem):
     def _expire_tokens(self):
         expired = []
         cutoff_time = datetime.utcnow() - timedelta(days=1)
-        for token, token_data in self._tokens.iteritems():
+        for token, token_data in self._tokens.items():
             if token_data.timestamp < cutoff_time:
                 expired.append(token)
         for token in expired:
@@ -269,7 +269,7 @@ class PasswordResetTool(SimpleItem):
             try:
                 agent.set_user_password(token_data.user_id, None, new_password)
             except CONSTRAINT_VIOLATION as e:
-                if e.message['info'] in [
+                if e.args[0]['info'] in [
                         'Password fails quality checking policy']:
                     try:
                         defaultppolicy = agent.conn.search_s(
@@ -278,11 +278,11 @@ class PasswordResetTool(SimpleItem):
                             SCOPE_BASE)
                         p_length = defaultppolicy[0][1]['pwdMinLength'][0]
                         message = '%s (min. %s characters)' % (
-                            e.message['info'], p_length)
+                            e.args[0]['info'], p_length)
                     except NO_SUCH_OBJECT:
-                        message = e.message['info']
+                        message = e.args[0]['info']
                 else:
-                    message = e.message['info']
+                    message = e.args[0]['info']
                 _set_session_message(REQUEST, 'error', message)
                 location = (self.absolute_url() +
                             '/confirm_email?token=' +

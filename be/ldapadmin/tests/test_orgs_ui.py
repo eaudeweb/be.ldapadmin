@@ -125,7 +125,7 @@ class OrganisationsUITest(unittest.TestCase):
         self.assertEqual(set(err_div.text for err_div in err_msg), errors)
 
         form = page.xpath('//form')[0]
-        for name, value in org_info.iteritems():
+        for name, value in org_info.items():
             if name == 'postal_address':
                 continue
             if name != 'id':
@@ -177,7 +177,7 @@ class OrganisationsUITest(unittest.TestCase):
         self.assertEqual(form.attrib['action'], 'URL/edit_organisation')
         self.assertEqual(form.xpath('//input[@name="id"]')[0].attrib['value'],
                          'bridge_club')
-        for name, value in org_info_fixture.iteritems():
+        for name, value in org_info_fixture.items():
             if name == 'postal_address':
                 xp = '//textarea[@name="%s:utf8:string"]' % name
                 frm_value = form.xpath(xp)[0].text

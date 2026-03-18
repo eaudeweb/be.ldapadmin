@@ -195,11 +195,11 @@ def generate_action_id():
 
 
 def decode_membership_type(encoded_mt):
-    role_id, mt = base64.b64decode(encoded_mt).split(':')
+    role_id, mt = base64.b64decode(encoded_mt).decode('utf-8').split(':')
     return role_id, mt
 
 
-def parse_membership_type(mt):
+def parse_membership_type(mt) -> dict:
     result = {}
 
     if mt:
@@ -271,6 +271,7 @@ class UsersDB(object):
         return dn_start + self._role_dn_suffix
 
     def _role_id(self, role_dn):
+        role_dn = self._to_str(role_dn)
         if role_dn == self._role_dn_suffix:
             return None
         assert role_dn.endswith(',' + self._role_dn_suffix)
@@ -292,11 +293,13 @@ class UsersDB(object):
 
     def _role_id_no_check(self, role_dn):
         """ Same as _role_id, but no checkups, for faster processing """
-        return re.match(r'ou=([^,]*)', role_dn).groups()[0]
+        m = re.match(r'ou=([^,]*)', self._to_str(role_dn))
+        assert m, "Invalid role DN: %s" % role_dn
+        return m.groups()[0]
 
     def _role_id_parent(self, role_dn):
         """ Returns parent role_id from dn, if existing, else None """
-        match = re.match(r'ou=[^,]*,ou=([^,]*),', role_dn)
+        match = re.match(r'ou=[^,]*,ou=([^,]*),', self._to_str(role_dn))
         if match:
             parent = match.groups()[0]
             if parent != 'DATA':
@@ -362,6 +365,7 @@ class UsersDB(object):
         @param attr not needed by LDAP schema (where rdn is uid),
         hack for info-rac
         """
+        user_dn = self._to_str(user_dn)
         assert user_dn.endswith(',' + self._user_dn_suffix)
 
         if user_dn.startswith('uid='):
@@ -389,6 +393,7 @@ class UsersDB(object):
             return 'cn=' + org_id + ',' + self._org_dn_suffix
 
     def _org_id(self, org_dn):
+        org_dn = self._to_str(org_dn)
         assert org_dn.endswith(',' + self._org_dn_suffix)
         assert org_dn.startswith('cn=')
         org_id = org_dn[len('cn='): - (len(self._org_dn_suffix) + 1)]
@@ -396,7 +401,15 @@ class UsersDB(object):
             log.error('Invalid LDAP organisation id %s' % org_id)
         return org_id
 
+    @staticmethod
+    def _to_str(value):
+        """Convert bytes to str if needed (python-ldap compat)"""
+        if isinstance(value, bytes):
+            return value.decode('utf-8')
+        return value
+
     def _unpack_user_info(self, dn, attr):
+        dn = self._to_str(dn)
         out = {'dn': dn, 'id': self._user_id(dn, attr)}
 
         unpack_these = {}
@@ -404,23 +417,24 @@ class UsersDB(object):
             for k, v in d.items():
                 unpack_these[k] = v
 
-        for name, ldap_name in unpack_these.iteritems():
+        for name, ldap_name in unpack_these.items():
             if ldap_name in attr:
                 if ldap_name.endswith('Timestamp'):
                     try:
+                        ts_value = self._to_str(attr[ldap_name][0])
                         out[name] = datetime.strptime(
-                            attr[ldap_name][0][:14] + "Z", '%Y%m%d%H%M%SZ')
+                            ts_value[:14] + "Z", '%Y%m%d%H%M%SZ')
                     except ValueError:
-                        out[name] = attr[ldap_name][0]
+                        out[name] = self._to_str(attr[ldap_name][0])
                 else:
                     # some have more, e.g. multiple orgs in "o" property, use
                     # join
                     out[name] = ', '.join(
-                        attr[ldap_name]).decode(self._encoding)
+                        self._to_str(v) for v in attr[ldap_name])
                     if name == 'uid':
                         out[name] = str(out[name])
             else:
-                out[name] = u""
+                out[name] = ""
 
         return out
 
@@ -433,11 +447,11 @@ class UsersDB(object):
                    'id': 'INEXISTENT ORGANISATION %s' % self._org_id(dn)}
         else:
             out = {'dn': dn, 'id': self._org_id(dn)}
-        for name, ldap_name in self.org_schema.iteritems():
+        for name, ldap_name in self.org_schema.items():
             if ldap_name in attr:
-                out[name] = attr[ldap_name][0].decode(self._encoding)
+                out[name] = self._to_str(attr[ldap_name][0])
             else:
-                out[name] = u""
+                out[name] = ""
         return out
 
     @log_ldap_exceptions
@@ -457,7 +471,7 @@ class UsersDB(object):
         out = {}
         for dn, attr in result:
             values = attr.get('description', [''])
-            out[self._role_id(dn)] = values[0].decode(self._encoding)
+            out[self._role_id(dn)] = self._to_str(values[0])
         return out
 
     @log_ldap_exceptions
@@ -544,7 +558,7 @@ class UsersDB(object):
         out = {'users': [], 'orgs': []}
         for dn, attr in result:
             # ignore blank member DNs
-            members = filter(bool, attr.get('uniqueMember', []))
+            members = [self._to_str(m) for m in attr.get('uniqueMember', []) if m]
             out['users'].extend(
                 map(self._user_id,
                     filter(lambda x: x.endswith(self._user_dn_suffix),
@@ -582,18 +596,18 @@ class UsersDB(object):
         result.sort(key=lambda x: x[0])
         roles = {}
         for dn, attr in result:
-            mbs = filter(bool, attr.get('uniqueMember', []))
+            mbs = [self._to_str(m) for m in attr.get('uniqueMember', []) if m]
             crt_id = self._role_id_no_check(dn)
             roles[crt_id] = \
                 {
-                    'users': map(self._user_id,
+                    'users': list(map(self._user_id,
                                  filter(
                                      lambda x: x.endswith(
-                                         self._user_dn_suffix), mbs)),
-                    'orgs': map(
+                                         self._user_dn_suffix), mbs))),
+                    'orgs': list(map(
                         self._org_id,
                         filter(lambda x: x.endswith(self._org_dn_suffix),
-                               mbs))
+                               mbs)))
             }
             parent = self._role_id_parent(dn)
             if parent and parent in roles:
@@ -624,6 +638,7 @@ class UsersDB(object):
             out = set()
             for dn, attr in result:
                 for member_dn in attr.get('uniqueMember', []):
+                    member_dn = self._to_str(member_dn)
                     if not member_dn:
                         # ignore blank member DNs
                         continue
@@ -662,7 +677,7 @@ class UsersDB(object):
             result = self.conn.search_s(
                 query_dn, ldap.SCOPE_BASE,
                 filterstr='(objectClass=organizationalPerson)',
-                attrlist=(['*'] + OPERATIONAL_SCHEMA.values()))
+                attrlist=(['*'] + list(OPERATIONAL_SCHEMA.values())))
         except ldap.NO_SUCH_OBJECT:
             raise UserNotFound("User '%s' does not exist" % user_id)
 
@@ -697,8 +712,6 @@ class UsersDB(object):
         Returns a dictionary of organisation information for `org_id`.
         """
 
-        if isinstance(org_id, unicode):
-            org_id = org_id.encode('utf-8')
         query_dn = self._org_dn(org_id)
         invalid = False
         inexistent = False
@@ -748,13 +761,13 @@ class UsersDB(object):
     def _unpack_role_info(self, attr):
         """ return a role info for an object from a result
         """
-        description = attr.get('description', [""])[0].decode(self._encoding)
-        postalAddress = attr.get('postalAddress', [""])[0].decode(self._encoding).replace('$', '\n')
-        postOfficeBox = attr.get('postOfficeBox', [""])[0].decode(self._encoding)
-        isDeactivatedRaw = attr.get('l', ["deactivated:False"])[0].decode(self._encoding)
+        description = self._to_str(attr.get('description', [""])[0])
+        postalAddress = self._to_str(attr.get('postalAddress', [""])[0]).replace('$', '\n')
+        postOfficeBox = self._to_str(attr.get('postOfficeBox', [""])[0])
+        isDeactivatedRaw = self._to_str(attr.get('l', ["deactivated:False"])[0])
         isDeactivated = isDeactivatedRaw.lower().split('deactivated:')[-1] == 'true' or False
-        extended = attr.get('businessCategory', ['False'])[0]
-        extended = True and extended.lower() == 'true' or False
+        extended = self._to_str(attr.get('businessCategory', ['False'])[0])
+        extended = extended.lower() == 'true'
 
         return {
             'description': description,  # this is used as title
@@ -762,11 +775,11 @@ class UsersDB(object):
             'postOfficeBox': postOfficeBox,  # this is used as status
             'isDeactivated': isDeactivated,
             'isActivated': not isDeactivated,
-            'owner': attr.get('owner', []),
-            'permittedSender': attr.get('permittedSender', []),
-            'permittedPerson': attr.get('permittedPerson', []),
-            'leaderMember': attr.get('leaderMember', []),
-            'alternateLeader': attr.get('alternateLeader', []),
+            'owner': [self._to_str(v) for v in attr.get('owner', [])],
+            'permittedSender': [self._to_str(v) for v in attr.get('permittedSender', [])],
+            'permittedPerson': [self._to_str(v) for v in attr.get('permittedPerson', [])],
+            'leaderMember': [self._to_str(v) for v in attr.get('leaderMember', [])],
+            'alternateLeader': [self._to_str(v) for v in attr.get('alternateLeader', [])],
             'extendedManagement': extended
         }
 
@@ -827,7 +840,7 @@ class UsersDB(object):
         ]
         attr_dict = {'uid': new_user_id}
 
-        for name, value in sorted(user_info.iteritems()):
+        for name, value in sorted(user_info.items()):
             if value == "":
                 continue
             if name == 'email':
@@ -835,7 +848,7 @@ class UsersDB(object):
                 attr_dict[self.user_schema['email']] = value
             else:
                 attrs.append(
-                    (self.user_schema[name], [value.encode(self._encoding)]))
+                    (self.user_schema[name], [value]))
                 # for custom RDN branch
                 attr_dict[attrs[-1][0]] = attrs[-1][1][0]
 
@@ -846,7 +859,7 @@ class UsersDB(object):
             modify_statements = []
             for email in emails:
                 modify_statements.append(
-                    (ldap.MOD_ADD, 'mail', [email.encode(self._encoding)]))
+                    (ldap.MOD_ADD, 'mail', [email]))
 
         try:
             if self._user_rdn in ('', 'uid'):
@@ -855,9 +868,9 @@ class UsersDB(object):
                 email_result = self.conn.modify_s(user_dn,
                                                   tuple(modify_statements))
             else:  # custom RDN branch
-                result = self.conn.add_s(
-                    self._user_dn(new_user_id,
-                                  rdn_value=attr_dict[self._user_rdn]), attrs)
+                user_dn = self._user_dn(new_user_id,
+                                        rdn_value=attr_dict[self._user_rdn])
+                result = self.conn.add_s(user_dn, attrs)
                 email_result = self.conn.modify_s(user_dn,
                                                   tuple(modify_statements))
 
@@ -878,15 +891,15 @@ class UsersDB(object):
         assert result[:2] in ((ldap.RES_EXTENDED, []), (None, None))
 
     def _update_full_name(self, user_info):
-        full_name = '%s %s' % (user_info.get('first_name', u""),
-                               user_info.get('last_name', u""))
+        full_name = '%s %s' % (user_info.get('first_name', ""),
+                               user_info.get('last_name', ""))
         user_info['full_name'] = full_name.strip()
 
     def _user_info_diff(self, user_id, old_info, new_info):
         """Returns a dictionary with only the relevant changes to the user
         (so excluding fields that are not editable in the form, like changelog, membership_type) """
         def pack(value):
-            return [value.encode(self._encoding)]
+            return [value]
 
         # normalize user_info dictionaries
         old_info = dict(old_info)
@@ -925,8 +938,8 @@ class UsersDB(object):
                 # membershipType is not editable in the form, avoid losing the info
                 continue
             else:
-                old_value = old_info.get(name, u"")
-                new_value = new_info.get(name, u"")
+                old_value = old_info.get(name, "")
+                new_value = new_info.get(name, "")
 
                 if old_value == new_value == '':
                     pass
@@ -972,18 +985,18 @@ class UsersDB(object):
 
         # make changes on the user object (additional to the ones on the org)
         log.info("Modifying info for user %r", user_id)
-        for dn, modify_statements in diff.iteritems():
+        for dn, modify_statements in diff.items():
             result = self.conn.modify_s(dn, tuple(modify_statements))
             assert result[:2] == (ldap.RES_MODIFY, [])
         return True
 
     def _org_info_diff(self, org_id, old_info, new_info):
         def pack(value):
-            return [value.encode(self._encoding)]
+            return [value]
 
         for name in self.org_schema:
-            old_value = old_info.get(name, u"")
-            new_value = new_info.get(name, u"")
+            old_value = old_info.get(name, "")
+            new_value = new_info.get(name, "")
             ldap_name = self.org_schema[name]
 
             if old_value == new_value == '':
@@ -1145,7 +1158,7 @@ class UsersDB(object):
                 rec_dn,
                 ldap.SCOPE_BASE,
                 # filterstr='(objectClass=organizationalPerson)',
-                attrlist=(['*'] + DISABLE_USER_SCHEMA.values()))
+                attrlist=(['*'] + list(DISABLE_USER_SCHEMA.values())))
         except ldap.NO_SUCH_OBJECT:
             raise UserNotFound("Record '%s' does not exist" % rec_dn)
 
@@ -1244,17 +1257,15 @@ class UsersDB(object):
         log.info("Enabling user %r", user_id)
 
         # search for the last disable record that has an email address
-        has_disable_record = False
-        # email = ''
         rec = None
         for rec in reversed(meta):  # new info is always appended
             if rec['action'] == DISABLE_ACCOUNT:
-                # email = rec['data']['email']
-                has_disable_record = True
                 break
+        else:
+            rec = None
 
-        assert has_disable_record, ("The user can't be enabled, was not "
-                                    "properly disabled")
+        assert rec is not None, ("The user can't be enabled, was not "
+                                 "properly disabled")
 
         self.add_change_record(user_dn, ENABLE_ACCOUNT, rec['data'])
 
@@ -1344,11 +1355,11 @@ class UsersDB(object):
             ('uniqueMember', ['']),
         ]
 
-        for name, value in sorted(org_info.iteritems()):
+        for name, value in sorted(org_info.items()):
             if value == "":
                 continue
             attrs.append(
-                (self.org_schema[name], [value.encode(self._encoding)]))
+                (self.org_schema[name], [value]))
 
         org_dn = self._org_dn(org_id)
         result = self.conn.add_s(org_dn, attrs)
@@ -1463,7 +1474,7 @@ class UsersDB(object):
             # also add the org to the user's `o` property
             result = self.conn.modify_s(
                 user_dn,
-                ((ldap.MOD_ADD, 'o', [org_id.encode(self._encoding)]),))
+                ((ldap.MOD_ADD, 'o', [org_id]),))
             assert result[:2] == (ldap.RES_MODIFY, [])
             self.add_change_record(user_dn, ADD_TO_ORG,
                                    {'organisation': org_id})
@@ -1515,7 +1526,7 @@ class UsersDB(object):
             # also remove the org from the user's `o` property
             result = self.conn.modify_s(
                 user_dn,
-                ((ldap.MOD_DELETE, 'o', [org_id.encode(self._encoding)]),))
+                ((ldap.MOD_DELETE, 'o', [org_id]),))
             assert result[:2] == (ldap.RES_MODIFY, [])
             self.add_change_record(user_dn, REMOVED_FROM_ORG, {
                 'organisation': org_id,
@@ -1586,7 +1597,7 @@ class UsersDB(object):
             ('uniqueMember', ['']),
         ]
         if description:
-            attrs.append(('description', [description.encode(self._encoding)]))
+            attrs.append(('description', [description]))
 
         role_dn = self._role_dn(role_id)
 
@@ -1611,11 +1622,13 @@ class UsersDB(object):
         blacklist = ['objectClass', 'description', 'cn', 'ou']
         for subrole_dn in subroles:
             subrole_id = self._role_id(subrole_dn)
+            if subrole_id is None:
+                continue
             dn, role_info = self.conn.search_s(subrole_dn, ldap.SCOPE_BASE)[0]
             description = role_info['description']
 
-            new_role_id = str(subrole_id.replace(role_source,
-                                                 role_destination))
+            new_role_id = subrole_id.replace(role_source,
+                                                 role_destination)
 
             try:
                 self.create_role(new_role_id, description[0])
@@ -1652,13 +1665,15 @@ class UsersDB(object):
         blacklist = ['objectClass', 'description', 'cn', 'ou']
         for subrole_dn in subroles:
             subrole_id = self._role_id(subrole_dn)
+            if subrole_id is None:
+                continue
             dn, role_info = self.conn.search_s(subrole_dn, ldap.SCOPE_BASE)[0]
             description = role_info['description']
 
-            new_role_id = str("-".join(
+            new_role_id = "-".join(
                 role_destination.split('-') +
                 subrole_id.split('-')[len(role_destination.split('-')):]
-            ).lower())
+            ).lower()
 
             try:
                 self.create_role(new_role_id, description[0])
@@ -1719,60 +1734,57 @@ class UsersDB(object):
     def set_role_description(self, role_id, description):
         """
         Sets role description (or name) to `description`
-        `description` must be unicode or ascii bytes
+        `description` must be a string
 
         """
         assert self._bound, "call `perform_bind` before `set_role_description`"
         log.info("Set description %r for role %r", description, role_id)
         role_dn = self._role_dn(role_id)
-        description_bytes = description.encode(self._encoding)
         try:
             self.conn.modify_s(role_dn, (
-                (ldap.MOD_REPLACE, 'description', [description_bytes]),
+                (ldap.MOD_REPLACE, 'description', [description]),
             ))
         except ldap.NO_SUCH_ATTRIBUTE:
             self.conn.modify_s(role_dn, (
-                (ldap.MOD_ADD, 'description', [description_bytes]),
+                (ldap.MOD_ADD, 'description', [description]),
             ))
 
     @log_ldap_exceptions
     def set_role_status(self, role_id, role_status):
         """
         Sets role postOfficeBox (or name) to `role_status`
-        `role_status` must be unicode or ascii bytes
+        `role_status` must be a string
 
         """
         assert self._bound, "call `perform_bind` before `set_role_status`"
         log.info("Set postOfficeBox %r for role %r", role_status, role_id)
         role_dn = self._role_dn(role_id)
-        role_status_bytes = role_status.encode(self._encoding)
         try:
             self.conn.modify_s(role_dn, (
-                (ldap.MOD_REPLACE, 'postOfficeBox', [role_status_bytes]),
+                (ldap.MOD_REPLACE, 'postOfficeBox', [role_status]),
             ))
         except ldap.NO_SUCH_ATTRIBUTE:
             self.conn.modify_s(role_dn, (
-                (ldap.MOD_ADD, 'postOfficeBox', [role_status_bytes]),
+                (ldap.MOD_ADD, 'postOfficeBox', [role_status]),
             ))
 
     @log_ldap_exceptions
     def set_role_address(self, role_id, address):
         """
         Sets role postalAddress (or description) to `address`
-        `address` must be unicode or ascii bytes
+        `address` must be a string
 
         """
         assert self._bound, "call `perform_bind` before `set_role_address`"
         log.info("Set info %r for role %r", address, role_id)
         role_dn = self._role_dn(role_id)
-        address_bytes = address.encode(self._encoding)
         try:
             self.conn.modify_s(role_dn, (
-                (ldap.MOD_REPLACE, 'postalAddress', [address_bytes]),
+                (ldap.MOD_REPLACE, 'postalAddress', [address]),
             ))
         except ldap.NO_SUCH_ATTRIBUTE:
             self.conn.modify_s(role_dn, (
-                (ldap.MOD_ADD, 'postalAddress', [address_bytes]),
+                (ldap.MOD_ADD, 'postalAddress', [address]),
             ))
 
     @log_ldap_exceptions
@@ -1819,22 +1831,19 @@ class UsersDB(object):
             result = self.conn.delete_s(dn)
             assert result[:2] == (ldap.RES_DELETE, [])
 
-    def raw_ldap_search(self, *args, **kwargs):
-        return self.conn.search_s(*args, **kwargs)
-
     @log_ldap_exceptions
     def activate_role(self, role_id):
         assert self._bound, "call `perform_bind` before `activate_role`"
         log.info("Activate role %r", role_id)
         role_dn = self._role_dn(role_id)
-        value_bytes = u"deactivated:false".encode(self._encoding)
+        value = "deactivated:false"
         try:
             self.conn.modify_s(role_dn, (
-                (ldap.MOD_REPLACE, 'l', [value_bytes]),
+                (ldap.MOD_REPLACE, 'l', [value]),
             ))
         except ldap.NO_SUCH_ATTRIBUTE:
             self.conn.modify_s(role_dn, (
-                (ldap.MOD_ADD, 'l', [value_bytes]),
+                (ldap.MOD_ADD, 'l', [value]),
             ))
 
     @log_ldap_exceptions
@@ -1842,14 +1851,14 @@ class UsersDB(object):
         assert self._bound, "call `perform_bind` before `deactivate_role`"
         log.info("Deactivate role %r", role_id)
         role_dn = self._role_dn(role_id)
-        value_bytes = u"deactivated:true".encode(self._encoding)
+        value = "deactivated:true"
         try:
             self.conn.modify_s(role_dn, (
-                (ldap.MOD_REPLACE, 'l', [value_bytes]),
+                (ldap.MOD_REPLACE, 'l', [value]),
             ))
         except ldap.NO_SUCH_ATTRIBUTE:
             self.conn.modify_s(role_dn, (
-                (ldap.MOD_ADD, 'l', [value_bytes]),
+                (ldap.MOD_ADD, 'l', [value]),
             ))
 
     def raw_ldap_search(self, *args, **kwargs):
@@ -1862,11 +1871,7 @@ class UsersDB(object):
 
         result = []
         for mail in email:
-            try:
-                query = mail.encode(self._encoding)
-            except UnicodeDecodeError:
-                # the email cannot be encoded so is likely not compliant
-                return []
+            query = mail
             pattern = '(&(objectClass=person){0}(mail=%s))'.format(
                 disabled_filter)
             query_filter = ldap.filter.filter_format(pattern, (query,))
@@ -1882,7 +1887,7 @@ class UsersDB(object):
         """Return all users matching any of the uids"""
         lookup_filters = [ACCEPTED_SEARCH_FIELDS['uid']
                           ['ldap_filter']] * len(uids)
-        query_arguments = [uid.encode(self._encoding) for uid in uids]
+        query_arguments = list(uids)
 
         pattern = '(&(objectClass=person)(|%s))' % ''.join(lookup_filters)
         query_filter = ldap.filter.filter_format(
@@ -1898,7 +1903,7 @@ class UsersDB(object):
 
         no_disabled: if True, will not return users that are disabled
         """
-        query = name.lower().encode(self._encoding)
+        query = name.lower()
         lookup_filters = []
         query_arguments = []
 
@@ -1928,7 +1933,7 @@ class UsersDB(object):
 
     @log_ldap_exceptions
     def search_org(self, name):
-        query = name.lower().encode(self._encoding)
+        query = name.lower()
         pattern = '(&(objectClass=organisation)(|(cn=*%s*)(o=*%s*)))'
         query_filter = ldap.filter.filter_format(pattern, (query, query))
 
@@ -1998,7 +2003,7 @@ class UsersDB(object):
 
         role_dn_list = self._add_member_dn_to_role_dn(role_dn, member_dn)
         self.set_membership_type(role_id, member_id, membership_type)
-        roles = map(self._role_id, role_dn_list)
+        roles = list(map(self._role_id, role_dn_list))
         user_dn = self._user_dn(member_id)
         for r_id in roles:
             change_data = {
@@ -2011,14 +2016,14 @@ class UsersDB(object):
         return roles
 
     def _encode_membership_type(self, role_id, mt):
-        encoded = base64.b64encode("{}:{}".format(role_id, mt))
-        return u"MT:{}".format(encoded).encode(self._encoding)
+        encoded = base64.b64encode("{}:{}".format(role_id, mt).encode()).decode()
+        return "MT:{}".format(encoded)
 
     @log_ldap_exceptions
     def set_membership_type(self, role_id, user_id, membership_type):
         assert self._bound, "call `perform_bind` before `set_membership_type`"
         user_info = self.user_info(user_id)
-        old_user_mt = user_info['membership_type']
+        old_user_mt: dict = user_info['membership_type']  # pyright: ignore[reportAssignmentType]
 
         if membership_type is None and old_user_mt.get(role_id):
             log.info(
@@ -2072,8 +2077,8 @@ class UsersDB(object):
                  'permittedSender': [..]}
         """
         role_info = self.role_info(role_id)
-        owner = map(self._user_id, role_info['owner'])
-        permitted_person = map(self._user_id, role_info['permittedPerson'])
+        owner = list(map(self._user_id, role_info['owner']))
+        permitted_person = list(map(self._user_id, role_info['permittedPerson']))
         return {
             'owner': owner, 'permittedSender': role_info['permittedSender'],
             'permittedPerson': permitted_person}
@@ -2095,7 +2100,7 @@ class UsersDB(object):
         filter_str = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result_existing = self.conn.search_s(query_dn, ldap.SCOPE_SUBTREE,
                                              filterstr=filter_str, attrlist=())
-        existing = map(lambda x: x[0], list(result_existing))
+        existing = [x[0] for x in result_existing]
         result = self.conn.search_s(
             query_dn, ldap.SCOPE_SUBTREE,
             filterstr='(objectClass=role)',
@@ -2260,11 +2265,11 @@ class UsersDB(object):
         """ Set user_ids list as alternate leaders for role_id """
         role_dn = self._role_dn(role_id)
         role_info = self.role_info(role_id)
-        user_dns = map(self._user_dn, user_ids)
+        user_dns = list(map(self._user_dn, user_ids))
         existing = role_info['alternateLeader']
         to_add = list(set(user_dns) - set(existing))
         to_remove = list(set(existing) - set(user_dns))
-        members = map(self._user_dn, self.members_in_role(role_id)['users'])
+        members = list(map(self._user_dn, self.members_in_role(role_id)['users']))
         if set(to_add) - set(members):
             raise ValueError(
                 "%r user ids must all be members of %s",
@@ -2446,13 +2451,13 @@ class UsersDB(object):
         role_dn = self._role_dn(role_id)
 
         role_dn_list = self._remove_member_dn_from_role_dn(role_dn, member_dn)
-        roles = sorted([self._role_id(x) for x in role_dn_list])
+        roles = sorted(r for x in role_dn_list if (r := self._role_id(x)) is not None)
 
         for r in roles:
             old_mt, _ = self.set_membership_type(r, member_id, None)
             self.add_change_record(member_dn, REMOVED_FROM_ROLE,
                                    {'role': r, 'member_type': member_type, 'membership_type': old_mt})
-        return map(self._role_id, role_dn_list)
+        return list(map(self._role_id, role_dn_list))
 
     @log_ldap_exceptions
     def list_member_roles(self, member_type, member_id):
@@ -2506,9 +2511,9 @@ class UsersDB(object):
             attrlist=('o', 'c', 'physicalDeliveryOfficeName'))
 
         return dict((self._org_id(dn),
-                     {'name': attr.get('o', [u""])[0].decode(self._encoding),
-                      'name_native': attr.get('physicalDeliveryOfficeName',
-                                              [u""])[0].decode(self._encoding),
+                     {'name': self._to_str(attr.get('o', [""])[0]),
+                      'name_native': self._to_str(attr.get('physicalDeliveryOfficeName',
+                                              [""])[0]),
                       'country':
                       attr.get('c', ['be']   # needs to be set to int,
                                # otherwise org doesn't

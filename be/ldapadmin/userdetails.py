@@ -121,8 +121,10 @@ class UserDetails(SimpleItem):
         roles = []
         orgs = []
         for (role_id, attrs) in ldap_roles:
-            roles.append((role_id,
-                          attrs.get('description', ('', ))[0].decode('utf8')))
+            desc = attrs.get('description', ('', ))[0]
+            if isinstance(desc, bytes):
+                desc = desc.decode('utf8')
+            roles.append((role_id, desc))
         user = agent.user_info(uid)
         user['email'] = split_to_list(user['email'])
         user['jpegPhoto'] = agent.get_profile_picture(uid)
@@ -347,7 +349,7 @@ class UserDetails(SimpleItem):
             }
 
             email_template = load_template('zpt/email_change_password.zpt')
-            email_password_body = email_template.pt_render(options)
+            email_password_body = email_template.render(**options)
             addr_to = user_info['email']
 
             message = MIMEText(email_password_body)
@@ -368,7 +370,7 @@ class UserDetails(SimpleItem):
             return REQUEST.RESPONSE.redirect(self.absolute_url() +
                                              '/change_password_html')
         except CONSTRAINT_VIOLATION as e:
-            if e.message['info'] in [
+            if e.args[0]['info'] in [
                     'Password fails quality checking policy']:
                 try:
                     defaultppolicy = agent.conn.search_s(
@@ -377,11 +379,11 @@ class UserDetails(SimpleItem):
                         SCOPE_BASE)
                     p_length = defaultppolicy[0][1]['pwdMinLength'][0]
                     message = '%s (min. %s characters)' % (
-                        e.message['info'], p_length)
+                        e.args[0]['info'], p_length)
                 except NO_SUCH_OBJECT:
-                    message = e.message['info']
+                    message = e.args[0]['info']
             else:
-                message = e.message['info']
+                message = e.args[0]['info']
             _set_session_message(REQUEST, 'error', message)
             return REQUEST.RESPONSE.redirect(self.absolute_url() +
                                              '/change_password_html')

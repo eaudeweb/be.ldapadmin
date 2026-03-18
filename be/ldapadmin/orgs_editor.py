@@ -150,7 +150,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         orgs_by_id = agent.all_organisations()
         countries = dict(get_country_options(country=country))
         orgs = []
-        for org_id, info in orgs_by_id.iteritems():
+        for org_id, info in orgs_by_id.items():
             country = countries.get(info['country'])
             if country:
                 orgs.append({'id': org_id,
@@ -175,7 +175,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         countries = dict(get_country_options())
 
         orgs = []
-        for org_id, info in orgs_by_id.iteritems():
+        for org_id, info in orgs_by_id.items():
             country = countries.get(info['country'])
             if country:
                 orgs.append({'id': org_id,
@@ -654,7 +654,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         orgs_by_id = agent.all_organisations()
 
         orgs = []
-        for org_id, info in orgs_by_id.iteritems():
+        for org_id, info in orgs_by_id.items():
             org_members = agent.members_in_org(org_id)
             members = []
             for user_id in org_members:
@@ -710,9 +710,9 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
                         rows.append(row)
 
             for item in rows:
-                csv_writer.writerow([value.encode('utf-8') for value in item])
+                csv_writer.writerow(item)
 
-            return codecs.BOM_UTF8 + output.getvalue()
+            return codecs.BOM_UTF8 + output.getvalue().encode('utf-8')
 
         return self._render_template('zpt/orgs_html_report.zpt', **options)
 
@@ -753,8 +753,8 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
     def add_members_html(self, REQUEST):
         """ view """
         org_id = REQUEST.form['id']
-        search_query = REQUEST.form.get('search_query', u"")
-        assert type(search_query) is unicode
+        search_query = REQUEST.form.get('search_query', "")
+        assert type(search_query) is str
 
         if search_query:
             agent = self._get_ldap_agent()

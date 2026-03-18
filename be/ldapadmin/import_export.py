@@ -1,6 +1,6 @@
 import xlsxwriter
 import logging
-import urllib
+import urllib.parse
 from io import BytesIO
 from naaya.core.utils import force_to_unicode
 
@@ -10,11 +10,11 @@ logger = logging.getLogger(__name__)
 def attachment_header(filename):
     assert isinstance(filename, str)
     try:
-        filename.decode('ascii')
-    except UnicodeDecodeError:
-        value = "filename*=UTF-8''%s" % urllib.quote(filename)
+        filename.encode('ascii')
+    except UnicodeEncodeError:
+        value = "filename*=UTF-8''%s" % urllib.parse.quote(filename)
     else:
-        value = "filename=%s" % urllib.quote(filename)
+        value = "filename=%s" % urllib.parse.quote(filename)
     return "attachment; " + value
 
 

@@ -41,7 +41,7 @@ class BaseActionDetails(BrowserView):
             user_info = self.base._get_ldap_agent().user_info(entry['author'])
         except UserNotFound:
             user_info = {'full_name': entry['author']}
-        return u"%s (%s)" % (user_info['full_name'], entry['author'])
+        return "%s (%s)" % (user_info['full_name'], entry['author'])
 
     def merge(self, roles):
         """ Merge the entries so that the only the leaf roles are displayed

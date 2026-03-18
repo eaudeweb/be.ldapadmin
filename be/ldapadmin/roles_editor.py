@@ -477,7 +477,7 @@ class RolesEditor(Folder):
         csv_file.writerow(['Role', 'Name', 'User ID', 'Email', 'Tel/Fax',
                            'Organisation'])
 
-        for role_id, role_data in filter_roles(agent, pattern).iteritems():
+        for role_id, role_data in filter_roles(agent, pattern).items():
             for (user_id, user_info) in role_data['users'].items():
                 row = []
                 for field in ['role_id', 'full_name', 'id', 'email', 'tel/fax',
@@ -490,7 +490,7 @@ class RolesEditor(Folder):
                     else:
                         value = user_info[field]
                     row += [value]
-                csv_file.writerow([v.encode('utf-8') for v in row])
+                csv_file.writerow(row)
 
         REQUEST.RESPONSE.setHeader('Content-Type', 'text/csv')
         filename = 'LDAP users in %s.csv' % pattern.replace('*', 'ANY')
@@ -729,7 +729,7 @@ class RolesEditor(Folder):
         return self._render_template('zpt/roles_create.zpt', **options)
 
     def _make_role(self, agent, slug, parent_role_id, description):
-        assert isinstance(slug, basestring)
+        assert isinstance(slug, str)
         if not slug:
             raise RoleCreationError(["Role name is required."])
         for ch in slug:
@@ -749,7 +749,7 @@ class RolesEditor(Folder):
         try:
             agent.create_role(str(role_id), description)
         except ValueError as e:
-            msg = unicode(e)
+            msg = str(e)
             if 'DN already exists' in msg:
                 msg = 'Role "%s" already exists.' % slug
             raise RoleCreationError([msg])
@@ -781,9 +781,9 @@ class RolesEditor(Folder):
             form_data = {'slug': slug, 'description': description}
             REQUEST.SESSION[SESSION_FORM_DATA] = form_data
         else:
-            msg = u'Created role %s' % role_id
+            msg = 'Created role %s' % role_id
             if description:
-                msg += u' "%s"' % description
+                msg += ' "%s"' % description
             _set_session_message(REQUEST, 'info', msg)
 
             with agent.new_action():
@@ -817,7 +817,7 @@ class RolesEditor(Folder):
                                % role_id)
         agent = self._get_ldap_agent()
 
-        to_remove = map(agent._role_id, agent._sub_roles(role_id))
+        to_remove = list(map(agent._role_id, agent._sub_roles(role_id)))
         options = {
             'role_id': role_id,
             'roles_to_remove': to_remove,
@@ -1132,7 +1132,7 @@ class RolesEditor(Folder):
                     role_info = agent.role_info(role)
                     roles_info[role] = role_info
                 rows.append([
-                    value.encode('utf-8')
+                    value
                     for value in [
                         role_info["postalAddress"],
                         role_info['postOfficeBox'],
@@ -1418,7 +1418,7 @@ class RolesEditor(Folder):
                     agent.set_role_status(role_id, role_status)
                     agent.set_role_address(role_id, address)
             except Exception as e:
-                return json.dumps({'error': unicode(e)})
+                return json.dumps({'error': str(e)})
             else:
                 log.info("%s SET DESCRIPTION %r FOR ROLE %s",
                          logged_in_user(REQUEST), description, role_id)
@@ -1428,7 +1428,7 @@ class RolesEditor(Folder):
                          logged_in_user(REQUEST), role_status, role_id)
                 return json.dumps({'error': False})
         elif isDeactivated:
-            return json.dumps({'error': u'Role is deactivated!'})
+            return json.dumps({'error': 'Role is deactivated!'})
 
     security.declareProtected(view_management_screens, 'manage_add_query_html')
     manage_add_query_html = query.manage_add_query_html
@@ -1746,13 +1746,13 @@ class EditMembersOfOneRole(BrowserView):
                 agent.remove_from_role(role_id, 'user', user_id)
 
         if not (new_users or removed_users):
-            msg = u"No changes."
+            msg = "No changes."
         else:
-            msg = u"Changed saved. "
+            msg = "Changed saved. "
         if new_users:
-            msg += u"Added users: " + u", ".join(new_users) + u". "
+            msg += "Added users: " + ", ".join(new_users) + ". "
         if removed_users:
-            msg += u"Removed users: " + u", ".join(removed_users) + u"."
+            msg += "Removed users: " + ", ".join(removed_users) + "."
 
         _set_session_message(self.request, 'info', msg)
         return self.view()
@@ -1797,7 +1797,7 @@ class EditRolesOfOneMember(BrowserView):
         choices = [('', '-')]
         for member in all_possible_members:
             name = agent.user_info(member)['full_name']
-            label = u"%s (%s)" % (member, name)
+            label = "%s (%s)" % (member, name)
             choices.append((member, label))
 
         choices.sort()
@@ -1859,13 +1859,13 @@ class EditRolesOfOneMember(BrowserView):
                 agent.add_to_role(role_id, 'user', user_id)
 
         if not (new_roles or removed_roles):
-            msg = u"No changes."
+            msg = "No changes."
         else:
-            msg = u"Changed saved. "
+            msg = "Changed saved. "
         if new_roles:
-            msg += u"Added to roles: " + u", ".join(new_roles) + u". "
+            msg += "Added to roles: " + ", ".join(new_roles) + ". "
         if removed_roles:
-            msg += u"Removed roles: " + u", ".join(removed_roles) + u"."
+            msg += "Removed roles: " + ", ".join(removed_roles) + "."
 
         _set_session_message(self.request, 'info', msg)
         return self.view()

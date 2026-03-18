@@ -18,7 +18,7 @@ defaults = {
 
 def read_form(form, edit=False):
     config = dict((name, form.get(name, default))
-                  for name, default in defaults.iteritems())
+                  for name, default in defaults.items())
     if edit:
         if not config['admin_pw'].strip():
             del config['admin_pw']

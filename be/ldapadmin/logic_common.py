@@ -56,7 +56,7 @@ def load_template(name, context=None, _memo={}):
 
 
 def split_to_list(value):
-    if isinstance(value, basestring):
+    if isinstance(value, str):
         value = value.replace(',', '\n').splitlines()
         value = [val.strip() for val in value]
     if not isinstance(value, list):

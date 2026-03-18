@@ -75,7 +75,9 @@ _url_validator = colander.Regex(r'^http[s]?\://', msg=INVALID_URL)
 
 
 def _email_validator(node, value):
-    if not isinstance(value, list):
+    if isinstance(value, list):
+        values = value
+    else:
         values = split_to_list(value)
     pattern = (r"(?:^|\s)[-a-z-A-Z0-9_.']+@(?:[-a-z-A-Z0-9]+\.)+[a-z-A-Z]"
                r"{2,63}(?:\s|$)")

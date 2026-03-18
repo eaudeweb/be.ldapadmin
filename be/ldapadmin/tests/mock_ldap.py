@@ -35,7 +35,7 @@ class MockConnection(object):
 
         for dn in dn_set:
             attrs = {}
-            for name, value in data[dn].iteritems():
+            for name, value in data[dn].items():
                 assert type(value) is list
                 if attrlist is None or name in attrlist:
                     attrs[name] = value

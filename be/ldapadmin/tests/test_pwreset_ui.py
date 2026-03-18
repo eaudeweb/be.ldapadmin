@@ -33,7 +33,8 @@ def decode_form(request):
     for name in source:
         value = source[name]
         if name.endswith(':utf8:string'):
-            value = value.decode('utf-8')
+            if isinstance(value, bytes):
+                value = value.decode('utf-8')
             name = name[:-(len(':utf8:string'))]
         form[name] = value
     return form

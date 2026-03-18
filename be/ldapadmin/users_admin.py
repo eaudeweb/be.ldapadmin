@@ -355,7 +355,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             **options)
 
         message['Subject'] = "[New user created by batch import]"
-        message.set_payload(body.encode('utf-8'), charset='utf-8')
+        message.set_payload(body, charset='utf-8')
         _send_email(addr_from, addr_to, message)
 
     security.declareProtected(ldap_edit_users, 'confirmation_email')
@@ -415,11 +415,11 @@ class UsersAdmin(SimpleItem, PropertyManager):
         for org in orgs:
             if org['ldap']:
                 if org['text_native']:
-                    label = u"%s (%s, %s)" % (org['text'], org['text_native'],
-                                              org['id'])
+                    label = "%s (%s, %s)" % (org['text'], org['text_native'],
+                                             org['id'])
                 else:
                     if org['text']:
-                        label = u"%s (%s)" % (org['text'], org['id'])
+                        label = "%s (%s)" % (org['text'], org['id'])
                     else:
                         label = org['id']
             else:
@@ -442,7 +442,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             except deform.ValidationFailure as e:
                 for field_error in e.error.children:
                     errors[field_error.node.name] = field_error.msg
-                msg = u"Please correct the errors below and try again."
+                msg = "Please correct the errors below and try again."
                 _set_session_message(REQUEST, 'error', msg)
             else:
                 user_id = user_info['id']
@@ -480,7 +480,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 if not errors:
                     return REQUEST.RESPONSE.redirect(self.absolute_url())
                 else:
-                    msg = u"Please correct the errors below and try again."
+                    msg = "Please correct the errors below and try again."
                     _set_session_message(REQUEST, 'error', msg)
 
         self._set_breadcrumbs([('Create User', '#')])
@@ -559,11 +559,11 @@ class UsersAdmin(SimpleItem, PropertyManager):
         for org in orgs:
             if org['ldap']:
                 if org['text_native']:
-                    label = u"%s (%s, %s)" % (org['text'], org['text_native'],
-                                              org['id'])
+                    label = "%s (%s, %s)" % (org['text'], org['text_native'],
+                                             org['id'])
                 else:
                     if org['text']:
-                        label = u"%s (%s)" % (org['text'], org['id'])
+                        label = "%s (%s)" % (org['text'], org['id'])
                     else:
                         label = org['id']
             else:
@@ -609,7 +609,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 errors[field_error.node.name] = field_error.msg
             session[SESSION_FORM_ERRORS] = errors
             session[SESSION_FORM_DATA] = dict(REQUEST.form)
-            msg = u"Please correct the errors below and try again."
+            msg = "Please correct the errors below and try again."
             _set_session_message(REQUEST, 'error', msg)
         else:
             agent = self._get_ldap_agent(bind=True)
@@ -760,7 +760,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         email_password_body = self._render_template.render(
             "zpt/users/email_enabled_account.zpt", **user_info)
 
-        message = _create_plain_message(email_password_body.encode('utf-8'))
+        message = _create_plain_message(email_password_body)
         message['From'] = addr_from
         message['To'] = addr_to
         message['Subject'] = "%s Account - account enabled" % NETWORK_NAME
@@ -814,7 +814,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         addr_to = user_info['email']
         email_password_body = self.email_password(user_info['first_name'],
                                                   password, 'change')
-        message = _create_plain_message(email_password_body.encode('utf-8'))
+        message = _create_plain_message(email_password_body)
         message['From'] = addr_from
         message['To'] = addr_to
         message['Subject'] = "%s Account - New password" % NETWORK_NAME
@@ -880,7 +880,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             secondary_agent = self._get_ldap_agent(secondary=True)
             orgs = secondary_agent.all_organisations()
 
-        for org_id, info in orgs.iteritems():
+        for org_id, info in orgs.items():
             members = agent.members_in_org(org_id)
             if members:
                 for user_id in members:
@@ -952,7 +952,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                                        user_info['id'])
         message['Subject'] = "%s Account `%s` Created" % (
             NETWORK_NAME, user_info['id'])
-        message.set_payload(body.encode('utf-8'), charset='utf-8')
+        message.set_payload(body, charset='utf-8')
         _send_email(addr_from, addr_to, message)
 
     def send_password_reset_email(self, user_info):
@@ -972,7 +972,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
             orgs_by_id = secondary_agent.all_organisations()
         countries = dict(get_country_options(country=country))
         orgs = {}
-        for org_id, info in orgs_by_id.iteritems():
+        for org_id, info in orgs_by_id.items():
             country_info = countries.get(info['country'])
             if country_info:
                 orgs[org_id] = info
@@ -1122,8 +1122,7 @@ class BulkUserImporter(BrowserView):
                 if count > 1:
                     errors.append('Duplicate email: %s appears %d times'
                                   % (email, count))
-                    users_data = filter(lambda x: x['email'] != email.lower(),
-                                        users_data)
+                    users_data = [x for x in users_data if x['email'] != email.lower()]
 
         if len(usernames) != len(set(usernames)):
             for username in set(usernames):
@@ -1131,8 +1130,7 @@ class BulkUserImporter(BrowserView):
                 if count > 1:
                     errors.append('Duplicate user ID: %s appears %d times'
                                   % (username, count))
-                    users_data = filter(lambda x: x['id'] != username,
-                                        users_data)
+                    users_data = [x for x in users_data if x['id'] != username]
 
         existing_emails = set(agent.existing_emails(list(set(emails))))
         existing_users = set(agent.existing_usernames(
@@ -1143,15 +1141,14 @@ class BulkUserImporter(BrowserView):
                 errors.append("The following email is already in database: %s"
                               % email)
             for email in existing_emails:
-                users_data = filter(lambda x: x['email'] != email.lower(),
-                                    users_data)
+                users_data = [x for x in users_data if x['email'] != email.lower()]
 
         if existing_users:
             for user_id in existing_users:
                 errors.append("The following user ID is already registered: %s"
                               % user_id)
             for username in existing_users:
-                users_data = filter(lambda x: x['id'] != username, users_data)
+                users_data = [x for x in users_data if x['id'] != username]
 
         for user_info in users_data:
             user_info['search_helper'] = _transliterate(
@@ -1184,7 +1181,7 @@ class BulkUserImporter(BrowserView):
                          "Error: %s sending password reset email to %s"
                          % (e, user_info['email']))
 
-                msg = u"%s %s (%s)" % \
+                msg = "%s %s (%s)" % \
                     (user_info['first_name'], user_info['last_name'], user_id)
                 successfully_imported.append(msg)
 
@@ -1284,7 +1281,7 @@ def _transliterate(first_name, last_name, full_name_native, search_helper):
                 pass
         try:
             ascii_values.append(
-                str(name.replace(u'\xdf', 'ss').translate(translate_table)))
+                str(name.replace('\xdf', 'ss').translate(translate_table)))
         except UnicodeEncodeError:
             # if we encounter other characters = other languages than German
             pass
