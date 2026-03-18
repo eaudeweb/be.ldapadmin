@@ -98,6 +98,13 @@ def merge_cells_by_column(wb, ws, rows, merge_columns):
         'valign': 'vcenter',
         'text_wrap': True
     })
+    # Same but with left border for the leftmost merged column
+    style_center_left = wb.add_format({
+        'align': 'center',
+        'valign': 'vcenter',
+        'text_wrap': True,
+        'left': 1
+    })
 
     # Apply merging to the worksheet (after data has been written)
     current_slice_start = 0
@@ -118,18 +125,20 @@ def merge_cells_by_column(wb, ws, rows, merge_columns):
             for col_idx in merge_columns:
                 # Ensure the value is unicode for xlsxwriter
                 cell_value = force_to_unicode(rows[i][col_idx])
+                # Use left border on the first column
+                fmt = style_center_left if col_idx == 0 else style_center
 
                 if offset_slice_range_start == offset_slice_range_end:
                     # Single cell, just write it
                     ws.write(offset_slice_range_start, col_idx,
-                           cell_value, style_center)
+                           cell_value, fmt)
                 else:
                     # Merge multiple cells
                     ws.merge_range(
                         offset_slice_range_start, col_idx,
                         offset_slice_range_end, col_idx,
                         cell_value,
-                        style_center
+                        fmt
                     )
 
             # Draw border around the entire merged section
@@ -175,23 +184,32 @@ def merge_cells_by_column(wb, ws, rows, merge_columns):
                                     {'type': 'formula', 'criteria': 'True',
                                      'format': fmt_right})
 
-            # Bottom-left corner
-            ws.conditional_format(offset_slice_range_end, 0,
-                                offset_slice_range_end, 0,
-                                {'type': 'formula', 'criteria': 'True',
-                                 'format': fmt_bottom_left})
-            # Bottom edge (excluding corners)
-            if num_cols > 2:
-                ws.conditional_format(offset_slice_range_end, 1,
-                                    offset_slice_range_end, num_cols - 2,
-                                    {'type': 'formula', 'criteria': 'True',
-                                     'format': fmt_bottom})
-            # Bottom-right corner
-            if num_cols > 1:
-                ws.conditional_format(offset_slice_range_end, num_cols - 1,
-                                    offset_slice_range_end, num_cols - 1,
-                                    {'type': 'formula', 'criteria': 'True',
-                                     'format': fmt_bottom_right})
+            # Bottom edge - rewrite cells directly to ensure border
+            # is always applied (conditional_format unreliable on last group)
+            for col_idx in range(num_cols):
+                if col_idx not in merge_columns:
+                    cell_value = force_to_unicode(
+                        rows[current_slice_end][col_idx])
+                    if col_idx == 0:
+                        fmt = fmt_bottom_left
+                    elif col_idx == num_cols - 1:
+                        fmt = fmt_bottom_right
+                    else:
+                        fmt = fmt_bottom
+                    ws.write(offset_slice_range_end, col_idx,
+                             cell_value, fmt)
+
+            # For the last group, write an empty row with top border
+            # to act as the visual bottom line (other groups get this
+            # from the next group's top border)
+            if next_role is None:
+                # Mimic what every other group gets naturally:
+                # a top border on the next row (from the next group)
+                closing_row = offset_slice_range_end + 1
+                ws.conditional_format(
+                    closing_row, 0, closing_row, num_cols - 1,
+                    {'type': 'formula', 'criteria': 'True',
+                     'format': fmt_top})
 
             # start next slice at next row
             current_slice_start = i + 1

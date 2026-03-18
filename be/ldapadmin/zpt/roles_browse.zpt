@@ -2,7 +2,8 @@
     <h1 tal:define="name python:(options['role_info']['description'].strip()
         or 'Role %s' % options['role_id'])"
         tal:content="name" class="left-position" />
-    <div id="role-status" title="Status" tal:content="role_status"></div>
+    <div id="role-status" title="Status" tal:content="role_status"
+         tal:attributes="class python:'terminated' if options['role_info'].get('isDeactivated', False) else ''"></div>
     <img tal:condition="python:options.get('role_id') and options['role_info']['isActivated'] and options['can_edit_members']"
         src="/++resource++be.ldapadmin-www/edit.gif" id="edit-role-description-arrow" />
     <div id="role-description" tal:content="options/role_info/postalAddress|nothing"></div>
@@ -110,8 +111,8 @@
             </thead>
 
             <tbody>
-                <tr tal:repeat="sub_role_id python:sorted(role_infos)"
-                    tal:attributes="class python:'odd' if path('repeat/sub_role_id/odd') else 'even'">
+                <tr tal:repeat="sub_role_id options/sorted_role_ids"
+                    tal:attributes="class python:('deactivated-role ' if role_infos[sub_role_id].get('isDeactivated', False) else '') + ('odd' if path('repeat/sub_role_id/odd') else 'even')">
                     <td>
                         <a tal:attributes="href string:?role_id=${sub_role_id};
                             class python: 'has-children' if options['agent'].role_names_in_role(sub_role_id) else '';"
@@ -131,7 +132,7 @@
                             </tal:rep>
                         </td>
                         <!--<td>
-                            <div tal:repeat="sender python:role_infos[sub_role_id]['permittedSender']" 
+                            <div tal:repeat="sender python:role_infos[sub_role_id]['permittedSender']"
                                 tal:content="sender" />
                         </td>-->
                     </tal:cond>
