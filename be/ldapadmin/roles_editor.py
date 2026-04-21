@@ -393,6 +393,9 @@ class RolesEditor(Folder):
                 for role in roles:
                     if role not in user_roles:
                         del(role_infos[role])
+        # Sort role IDs: active roles first (alphabetically), then deactivated (alphabetically)
+        sorted_role_ids = sorted(role_infos.keys(),
+                                 key=lambda x: (role_infos[x].get('isDeactivated', False), x))
         options = {
             'roles_domain': ROLES_DOMAIN,
             'roles_status': OPTIONS_ROLES_STATUS,
@@ -400,6 +403,7 @@ class RolesEditor(Folder):
             'role_name': get_role_name(agent, role_id),
             'role_info': role_info,
             'role_infos': role_infos,
+            'sorted_role_ids': sorted_role_ids,
             'role_members': role_members(agent, role_id),
             'role_owners': role_owners,
             'permitted_persons': persons,
@@ -863,6 +867,7 @@ class RolesEditor(Folder):
         agent = self._get_ldap_agent(bind=True)
         with agent.new_action():
             agent.activate_role(role_id)
+            agent.set_role_status(role_id, u'')
         _set_session_message(REQUEST, 'info', "Activated role %s" % role_id)
 
         log.info("%s ACTIVATED ROLE %s", logged_in, role_id)
@@ -881,6 +886,7 @@ class RolesEditor(Folder):
         agent = self._get_ldap_agent(bind=True)
         with agent.new_action():
             agent.deactivate_role(role_id)
+            agent.set_role_status(role_id, u'Terminated')
         _set_session_message(REQUEST, 'info', "Deactivated role %s" % role_id)
 
         log.info("%s DEACTIVATED ROLE %s", logged_in, role_id)
