@@ -1,5 +1,6 @@
 0.2 (unreleased)
 ------------------------
+* Reinstate role_id as grouping, sorting criterion on Excel export [valipod]
 * Highlight deactivated roles: set role status to "Terminated" on
   deactivation, sort roles listing by active/inactive, visually mark
   inactive roles [valipod]
