@@ -1,5 +1,7 @@
 1.0 (unreleased)
-------------------------
+----------------
+* Port to Python 3 and Zope 5 [dumitval]
+* Require naaya.ldapdump >= 2.0.0, allow newer jellyfish releases [dumitval]
 * Reinstate role_id as grouping, sorting criterion on Excel export [valipod]
 * Highlight deactivated roles: set role status to "Terminated" on
   deactivation, sort roles listing by active/inactive, visually mark
