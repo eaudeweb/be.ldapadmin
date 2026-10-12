@@ -377,7 +377,7 @@ class UserDetails(SimpleItem):
                         'cn=defaultppolicy,ou=pwpolicies,o=EIONET,'
                         'l=Europe',
                         SCOPE_BASE)
-                    p_length = defaultppolicy[0][1]['pwdMinLength'][0]
+                    p_length = defaultppolicy[0][1]['pwdMinLength'][0].decode()
                     message = '%s (min. %s characters)' % (
                         e.args[0]['info'], p_length)
                 except NO_SUCH_OBJECT:

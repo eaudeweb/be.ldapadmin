@@ -822,7 +822,7 @@ class UsersDB(object):
         result = self.conn.search_s(self._user_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query, attrlist=('mail',))
         for dn, attr in result:
-            yield attr['mail'][0]
+            yield self._to_str(attr['mail'][0])
 
     @log_ldap_exceptions
     def create_user(self, new_user_id, user_info):
@@ -1391,7 +1391,7 @@ class UsersDB(object):
                                     attrlist=('uniqueMember',))
         assert len(result) == 1
         dn, attr = result[0]
-        return [self._user_id(d) for d in attr['uniqueMember'] if d != '']
+        return [self._user_id(d) for d in attr['uniqueMember'] if d]
 
     @log_ldap_exceptions
     def pending_members_in_org(self, org_id):
@@ -1401,7 +1401,7 @@ class UsersDB(object):
         assert len(result) == 1
         dn, attr = result[0]
         return [self._user_id(d) for d in attr.get('pendingUniqueMember', [])
-                if d != '']
+                if d]
 
     @log_ldap_exceptions
     def add_pending_to_org(self, org_id, user_id_list):
@@ -2513,7 +2513,8 @@ class UsersDB(object):
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query_filter, attrlist=('o',))
-        return [(self._org_id(dn), attr['o']) for dn, attr in result]
+        return [(self._org_id(dn), [self._to_str(o) for o in attr['o']])
+                for dn, attr in result]
 
     @log_ldap_exceptions
     def all_organisations(self):
@@ -2526,11 +2527,11 @@ class UsersDB(object):
                      {'name': self._to_str(attr.get('o', [""])[0]),
                       'name_native': self._to_str(attr.get('physicalDeliveryOfficeName',
                                               [""])[0]),
-                      'country':
+                      'country': self._to_str(
                       attr.get('c', ['be']   # needs to be set to int,
                                # otherwise org doesn't
                                # show up
-                               )[0]})
+                               )[0])})
                     for dn, attr in result)
 
     @log_ldap_exceptions

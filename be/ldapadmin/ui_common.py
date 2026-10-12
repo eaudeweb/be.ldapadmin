@@ -52,7 +52,7 @@ def extend_crumbs(crumbs_html, editor_url, extra_crumbs):
     last_crumb.attrib['class'] = "breadcrumbitemlast"
     last_crumb.text = last_crumb_text
 
-    return tostring(crumbs)
+    return tostring(crumbs, encoding='unicode')
 
 
 class SessionMessages(object):

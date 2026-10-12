@@ -21,6 +21,9 @@
 * Fix the country options on Python 3 [dumitval]
 * Fix the users search page on Python 3 [dumitval]
 * Fix the organisations Excel exports on Python 3 [dumitval]
+* Fix organisation countries and members, user organisations, existing
+  emails, the password length message and the breadcrumbs on Python 3
+  [dumitval]
 
 0.1 (2021-04-03)
 ------------------------
