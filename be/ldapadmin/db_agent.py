@@ -700,7 +700,7 @@ class UsersDB(object):
         """
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organisation)(pendingUniqueMember=%s))',
+            '(&(objectClass=organizationGroup)(pendingUniqueMember=%s))',
             (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
@@ -1015,7 +1015,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def user_organisations(self, user_id):
         """ return organisations the user belongs to """
-        filter_tmpl = '(&(objectClass=organisation)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=organizationGroup)(uniqueMember=%s))'
         user_dn = self._user_dn(user_id)
         filterstr = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result = self.conn.search_s(self._org_dn(None), ldap.SCOPE_SUBTREE,
@@ -1946,7 +1946,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def search_org(self, name):
         query = name.lower()
-        pattern = '(&(objectClass=organisation)(|(cn=*%s*)(o=*%s*)))'
+        pattern = '(&(objectClass=organizationGroup)(|(cn=*%s*)(o=*%s*)))'
         query_filter = ldap.filter.filter_format(pattern, (query, query))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
@@ -2500,7 +2500,7 @@ class UsersDB(object):
     def _search_user_in_orgs(self, user_id):
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organisation)(uniqueMember=%s))', (user_dn,))
+            '(&(objectClass=organizationGroup)(uniqueMember=%s))', (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query_filter, attrlist=())
@@ -2509,7 +2509,7 @@ class UsersDB(object):
     def orgs_for_user(self, user_id):
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organisation)(uniqueMember=%s))', (user_dn,))
+            '(&(objectClass=organizationGroup)(uniqueMember=%s))', (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query_filter, attrlist=('o',))

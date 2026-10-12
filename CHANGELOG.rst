@@ -24,6 +24,8 @@
 * Fix organisation countries and members, user organisations, existing
   emails, the password length message and the breadcrumbs on Python 3
   [dumitval]
+* Find organisations by the organizationGroup object class used in the LDAP
+  [dumitval]
 
 0.1 (2021-04-03)
 ------------------------
