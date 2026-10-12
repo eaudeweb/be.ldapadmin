@@ -29,6 +29,7 @@
 * Send LDAP attribute values as bytes when adding and modifying entries
   [dumitval]
 * Fix the user details page on Python 3 [dumitval]
+* Replace the deprecated datetime.utcnow [dumitval]
 
 0.1 (2021-04-03)
 ------------------------

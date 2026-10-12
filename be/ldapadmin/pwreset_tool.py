@@ -6,7 +6,7 @@ import hashlib
 import logging
 import random
 from collections import namedtuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zope.component import getUtility
 from zope.component import ComponentLookupError
 from zope.sendmail.interfaces import IMailDelivery
@@ -129,13 +129,13 @@ class PasswordResetTool(SimpleItem):
 
     def _new_token(self, user_id):
         token = random_token()
-        self._tokens[token] = TokenData(user_id, datetime.utcnow())
+        self._tokens[token] = TokenData(user_id, datetime.now(timezone.utc).replace(tzinfo=None))
         return token
 
     def _send_token_email(self, addr_to, token, user_info):
         addr_from = MAIL_ADDRESS_FROM
         email_template = load_template('zpt/pwreset_token_email.zpt')
-        expiration_time = datetime.utcnow() + timedelta(days=1)
+        expiration_time = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=1)
         options = {
             'token_url': self.absolute_url() + "/confirm_email?token=" + token,
             'user_info': user_info,
@@ -221,7 +221,7 @@ class PasswordResetTool(SimpleItem):
 
     def _expire_tokens(self):
         expired = []
-        cutoff_time = datetime.utcnow() - timedelta(days=1)
+        cutoff_time = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)
         for token, token_data in self._tokens.items():
             if token_data.timestamp < cutoff_time:
                 expired.append(token)

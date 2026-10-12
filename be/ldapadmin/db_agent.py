@@ -1,7 +1,7 @@
 ''' LDAP connection module '''
 
 import contextlib
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 import random
@@ -1222,7 +1222,7 @@ class UsersDB(object):
         if not data:
             data = {}
         old_records = self._get_metadata(rec_dn)
-        utc_now = datetime.utcnow().replace(microsecond=0)
+        utc_now = datetime.now(timezone.utc).replace(tzinfo=None, microsecond=0)
         timestamp = utc_now.isoformat()
         if '+' not in timestamp:
             timestamp += '+00:00'
