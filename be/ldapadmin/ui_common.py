@@ -92,7 +92,7 @@ class TemplateRenderer(Implicit):
         template = load_template(name)
         options['common'] = self.common_factory(context)
         options['browserview'] = self.browserview
-        return template.render(options=options, **options)
+        return template.render(options=options, template=template, **options)
 
     def browserview(self, context, name):
         return getMultiAdapter((context, self.aq_parent.REQUEST), name=name)
@@ -134,7 +134,7 @@ class TemplateRendererNoWrap(Implicit):
         options['request'] = self.aq_parent.REQUEST
 
         options['common'] = self.common_factory(context)
-        return template.render(options=options, **options)
+        return template.render(options=options, template=template, **options)
 
     def __call__(self, name, **options):
         return self.render(name, **options)
