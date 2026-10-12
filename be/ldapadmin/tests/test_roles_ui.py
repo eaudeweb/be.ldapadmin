@@ -6,7 +6,7 @@ import logging
 from copy import deepcopy
 import csv
 from io import StringIO
-from mock import Mock, patch
+from unittest.mock import MagicMock as Mock, patch
 import lxml.cssselect
 import lxml.html.soupparser
 from be.ldapadmin.roles_editor import RolesEditor, CommonTemplateLogic
@@ -44,6 +44,17 @@ class StubbedRolesEditor(RolesEditor):
     def absolute_url(self):
         return "URL"
 
+    def getPhysicalRoot(self):
+        return Mock(objectValues=Mock(return_value=[]))
+
+    def checkPermissionViewManagementScreens(self):
+        return True
+
+    def restrictedTraverse(self, path, default=None):
+        if path == '@@is_extended_enabled':
+            return lambda role_id: False
+        return super().restrictedTraverse(path, default)
+
 
 def mock_request():
     request = Mock()
@@ -59,6 +70,7 @@ user_map_fixture = {
         'phone': u"555 1234",
         'fax': u"555 6789",
         'organisation': "My company",
+        'membership_type': {},
     },
     'anne': {
         'id': "anne",
@@ -67,6 +79,7 @@ user_map_fixture = {
         'phone': u"555 32879",
         'fax': u"",
         'organisation': "Some Agency",
+        'membership_type': {},
     },
 }
 
@@ -94,6 +107,10 @@ class BrowseTest(unittest.TestCase):
     def setUp(self):
         self.ui = StubbedRolesEditor()
         self.mock_agent = Mock()
+        self.mock_agent.role_info.return_value = {
+            'isDeactivated': False, 'isActivated': True, 'owner': [],
+            'description': '',
+            'postOfficeBox': '', 'postalAddress': ''}
         self.ui._get_ldap_agent = Mock(return_value=self.mock_agent)
         self.request = mock_request()
         self.request.form = {'role_id': 'places'}
@@ -109,16 +126,23 @@ class BrowseTest(unittest.TestCase):
             'permittedPerson': [],
         }
         self.mock_agent.role_info.return_value = {
+            'isDeactivated': False,
+            'isActivated': True,
+            'postOfficeBox': '',
+            'postalAddress': '',
             'description': "Various places",
         }
 
     def test_browse_subroles(self):
         role_names = {'bank': "Bank for Test", 'agency': "The Agency"}
         self.mock_agent.role_names_in_role.return_value = role_names
+        self.mock_agent.role_infos_in_role.return_value = dict(
+            (role_id, {'description': name, 'owner': []})
+            for role_id, name in role_names.items())
 
         page = parse_html(self.ui.index_html(self.request))
 
-        self.mock_agent.role_names_in_role.assert_called_with('bank')
+        self.mock_agent.role_names_in_role.assert_any_call('bank')
         table = page.xpath('table/tbody')[0]
         self.assertEqual(len(table.xpath('.//tr')), 2)
         tr1, tr2 = table.xpath('tr')
@@ -168,6 +192,10 @@ class CreateDeleteRolesTest(unittest.TestCase):
     def setUp(self):
         self.ui = StubbedRolesEditor()
         self.mock_agent = Mock()
+        self.mock_agent.role_info.return_value = {
+            'isDeactivated': False, 'isActivated': True, 'owner': [],
+            'description': '',
+            'postOfficeBox': '', 'postalAddress': ''}
         self.mock_agent._encoding = 'utf-8'
         self.ui._get_ldap_agent = Mock(return_value=self.mock_agent)
         self.request = mock_request()
@@ -204,6 +232,10 @@ class CreateDeleteRolesTest(unittest.TestCase):
             'users': [], 'orgs': []}
         self.mock_agent.role_names_in_role.return_value = {}
         self.mock_agent.role_info.return_value = {
+            'isDeactivated': False,
+            'isActivated': True,
+            'postOfficeBox': '',
+            'postalAddress': '',
             'description': "Various places",
         }
         self.request.form = {'role_id': 'places'}
@@ -275,8 +307,8 @@ class CreateDeleteRolesTest(unittest.TestCase):
         self.request.RESPONSE.redirect.assert_called_with(
             'URL/create_role_html?parent_role_id=places')
 
-        msg = ("Invalid Role ID, it must contain only lowercase "
-               "latin letters.")
+        msg = ("Invalid Role ID, it may contain only lowercase latin "
+               "letters, digits and underscores.")
         self.assertEqual(session_messages(self.request), {'error': [msg]})
 
         self.request.form = {'parent_role_id': 'places'}
@@ -327,6 +359,10 @@ class AddRemoveRoleMembersTest(unittest.TestCase):
     def setUp(self):
         self.ui = StubbedRolesEditor()
         self.mock_agent = Mock()
+        self.mock_agent.role_info.return_value = {
+            'isDeactivated': False, 'isActivated': True, 'owner': [],
+            'description': '',
+            'postOfficeBox': '', 'postalAddress': ''}
         self.mock_agent._encoding = 'utf-8'
         self.ui._get_ldap_agent = Mock(return_value=self.mock_agent)
         self.mock_agent.mail_group_info.return_value = {
@@ -357,6 +393,10 @@ class AddRemoveRoleMembersTest(unittest.TestCase):
             'users': [], 'orgs': []}
         self.mock_agent.role_names_in_role.return_value = {}
         self.mock_agent.role_info.return_value = {
+            'isDeactivated': False,
+            'isActivated': True,
+            'postOfficeBox': '',
+            'postalAddress': '',
             'description': "Various places",
         }
         self.request.form = {'role_id': 'places'}
@@ -411,12 +451,16 @@ class AddRemoveRoleMembersTest(unittest.TestCase):
         self.request.form = {'role_id': 'places-bank', 'user_id': 'jsmith'}
         self.mock_agent.add_to_role.return_value = ['places', 'places-bank']
         self.mock_agent.role_info.return_value = {
+            'isDeactivated': False,
+            'isActivated': True,
+            'postOfficeBox': '',
+            'postalAddress': '',
             'description': "Various places",
         }
 
         self.ui.add_user(self.request)
         self.mock_agent.add_to_role.assert_called_once_with(
-            'places-bank', 'user', 'jsmith')
+            'places-bank', 'user', 'jsmith', None)
         self.request.RESPONSE.redirect.assert_called_with(
             'URL/?role_id=places-bank')
         msg = "User 'jsmith' added to roles Various places, Various places."
@@ -430,6 +474,10 @@ class AddRemoveRoleMembersTest(unittest.TestCase):
             'users': ['jsmith'], 'orgs': []}
         self.mock_agent.role_names_in_role.return_value = {}
         self.mock_agent.role_info.return_value = {
+            'isDeactivated': False,
+            'isActivated': True,
+            'postOfficeBox': '',
+            'postalAddress': '',
             'description': "Various places",
         }
         self.mock_agent.user_info.return_value = dict(user_info_fixture,
@@ -449,6 +497,10 @@ class AddRemoveRoleMembersTest(unittest.TestCase):
         logged_user.return_value = 'John Doe'
         self.request.form = {'role_id': 'places', 'user_id_list': ['jsmith']}
         self.mock_agent.role_info.return_value = {
+            'isDeactivated': False,
+            'isActivated': True,
+            'postOfficeBox': '',
+            'postalAddress': '',
             'description': "Various places",
         }
         self.mock_agent.remove_from_role.return_value = ['places']
@@ -467,6 +519,10 @@ class AddRemoveRoleMembersTest(unittest.TestCase):
         logged_user.return_value = 'John Doe'
         self.request.form = {'role_id': 'places'}
         self.mock_agent.role_info.return_value = {
+            'isDeactivated': False,
+            'isActivated': True,
+            'postOfficeBox': '',
+            'postalAddress': '',
             'description': "Various places",
         }
 
@@ -481,6 +537,10 @@ class UserSearchTest(unittest.TestCase):
     def setUp(self):
         self.ui = StubbedRolesEditor()
         self.mock_agent = Mock()
+        self.mock_agent.role_info.return_value = {
+            'isDeactivated': False, 'isActivated': True, 'owner': [],
+            'description': '',
+            'postOfficeBox': '', 'postalAddress': ''}
         self.mock_agent._encoding = 'utf-8'
         self.mock_agent.is_subrole = lambda r1, r2: r1.startswith(r2)
         self.ui._get_ldap_agent = Mock(return_value=self.mock_agent)
@@ -584,6 +644,10 @@ class FilterTest(unittest.TestCase):
     def setUp(self):
         self.ui = StubbedRolesEditor()
         self.mock_agent = Mock()
+        self.mock_agent.role_info.return_value = {
+            'isDeactivated': False, 'isActivated': True, 'owner': [],
+            'description': '',
+            'postOfficeBox': '', 'postalAddress': ''}
         self.mock_agent._encoding = 'utf-8'
         self.ui._get_ldap_agent = Mock(return_value=self.mock_agent)
         self.request = mock_request()
@@ -604,7 +668,8 @@ class FilterTest(unittest.TestCase):
 
     def check_query_results(self, page):
         self.assertEqual([plaintext(tt) for tt in page.xpath('//h3')],
-                         ["Users in places-bank", 'Users in places-shiny'])
+                         ['Users in Bank (places-bank)',
+                          'Users in Shiny (places-shiny)'])
         # TODO we should also list places-shiny somehow
 
         user_names = [plaintext(s) for s in
@@ -637,6 +702,10 @@ class UserInfoTest(unittest.TestCase):
     def setUp(self):
         self.ui = StubbedRolesEditor()
         self.mock_agent = Mock()
+        self.mock_agent.role_info.return_value = {
+            'isDeactivated': False, 'isActivated': True, 'owner': [],
+            'description': '',
+            'postOfficeBox': '', 'postalAddress': ''}
         self.mock_agent._encoding = 'utf-8'
         self.ui._get_ldap_agent = Mock(return_value=self.mock_agent)
         self.request = mock_request()
@@ -646,6 +715,10 @@ class UserInfoTest(unittest.TestCase):
         self.users = deepcopy(user_map_fixture)
         self.mock_agent.user_info.side_effect = self.users.get
         self.mock_agent.role_info.return_value = {
+            'isDeactivated': False,
+            'isActivated': True,
+            'postOfficeBox': '',
+            'postalAddress': '',
             'description': "The bank",
         }
         self.mock_agent.mail_group_info.return_value = {
@@ -666,9 +739,9 @@ class UserInfoTest(unittest.TestCase):
     def _get_fields(self, name):
         page = parse_html(getattr(self.ui, name)(self.request))
         txt = lambda e: e.text_content().strip()
-        table = css(page, 'table.account-datatable')[0]
-        labels = map(txt, css(table, 'thead tr td'))
-        values = map(txt, css(table, 'tbody tr td'))
+        table = css(page, 'table.account-datatable')[-1]  # users table
+        labels = [txt(e) for e in css(table, 'thead tr td')]
+        values = [txt(e) for e in css(table, 'tbody tr td')]
         self.assertEqual(len(labels), len(values))
         data = dict(zip(labels, values))
         return data
@@ -718,8 +791,7 @@ class UserInfoTest(unittest.TestCase):
             ['Role', 'Name', 'User ID', 'Email', 'Tel/Fax', 'Organisation'],
             ["places-bank", "Joe Smith", "jsmith", "jsmith@example.com",
              "555 1234, 555 6789", "My company"],
-            ["places-china", u"孔子".encode('utf-8'), "confucius",
-             "", "", u"儒家".encode('utf-8')],
+            ["places-china", "孔子", "confucius", "", "", "儒家"],
         ]
 
         # not logged in
@@ -728,7 +800,8 @@ class UserInfoTest(unittest.TestCase):
 
         # logged in
         self.user.getRoles.return_value = ['Authenticated']
-        data = StringIO(self.ui.filter_users_csv(self.request))
+        data = StringIO(
+            self.ui.filter_users_csv(self.request).decode('utf-8-sig'))
         rows = list(csv.reader(data))
         self.assertEqual(rows[0], expected_rows[0])
         self.assertEqual(sorted(rows[1:]), sorted(expected_rows[1:]))

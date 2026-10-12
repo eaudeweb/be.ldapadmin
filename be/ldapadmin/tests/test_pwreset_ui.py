@@ -1,9 +1,10 @@
 import unittest
+from io import BytesIO
 import re
 from datetime import datetime, timedelta
 from zope.component import getGlobalSiteManager
 from zope.sendmail.interfaces import IMailDelivery
-from mock import Mock, patch
+from unittest.mock import MagicMock as Mock, patch
 from webob import Response
 from webob.exc import HTTPNotFound, HTTPSeeOther
 from webob.dec import wsgify
@@ -49,7 +50,13 @@ class WsgiApp(object):
     def __call__(self, request):
         request.SESSION = self.session
         request.RESPONSE = Mock()
+        # z3c.pt reads the content type from the Zope response API
+        request.response.getHeader = lambda name, default=None: default
+        request.response.setHeader = lambda name, value: None
         request.form = decode_form(request)
+        request.get = request.form.get  # Zope request API
+        request.AUTHENTICATED_USER = Mock()
+        request.AUTHENTICATED_USER.has_permission.return_value = False
         try:
             name = request.path[1:] or 'index_html'
             method = getattr(self.ui, name)
@@ -64,7 +71,49 @@ class WsgiApp(object):
                 return HTTPSeeOther(location=url)
 
             else:
+                if isinstance(body, str):
+                    return Response(text=body)
                 return Response(body)
+
+
+class Browser(object):
+    """ The few mechanize.Browser calls the tests use, over WebOb """
+
+    def __init__(self, app):
+        self.app = app
+        self.url = None
+        self.body = None
+        self.form = None
+
+    def _request(self, url, post=None):
+        from urllib.parse import urljoin
+        from webob import Request
+        while True:
+            self.url = urljoin(self.url or url, url)
+            req = Request.blank(self.url, POST=post)
+            resp = req.get_response(self.app)
+            if resp.status_int in (301, 302, 303):
+                url, post = resp.location, None
+                continue
+            self.body = resp.body
+            return BytesIO(resp.body)
+
+    def open(self, url):
+        return self._request(url)
+
+    def select_form(self, name):
+        page = parse_html(self.body)
+        self.form = page.xpath('//form[@name="%s"]' % name)[0]
+        self.fields = dict((i.get('name'), i.get('value') or '')
+                           for i in self.form.xpath('.//input[@name]')
+                           if i.get('type') != 'submit')
+
+    def __setitem__(self, name, value):
+        self.fields[name] = value
+
+    def submit(self):
+        return self._request(self.form.get('action') or self.url,
+                             post=self.fields)
 
 
 def parse_email(mimetext):
@@ -98,7 +147,7 @@ class BrowseTest(unittest.TestCase):
         self.ui._get_ldap_agent = Mock(return_value=self.mock_agent)
 
         users = [
-            {'id': 'teh-user', 'email': 'testpilot@example.com'},
+            {'id': 'teh-user', 'email': 'testpilot@example.com', 'status': ''},
         ]
         filter_users = lambda email: [u for u in users if u['email'] == email]
         self.mock_agent.search_user_by_email.side_effect = filter_users
@@ -110,16 +159,9 @@ class BrowseTest(unittest.TestCase):
         gsm = getGlobalSiteManager()
         gsm.registerUtility(self.mail_delivery, IMailDelivery, "Mail")
 
-        app = WsgiApp(self.ui)
-
-        import wsgi_intercept.mechanize_intercept
-        wsgi_intercept.add_wsgi_intercept('test', 80, lambda: app)
-        self.browser = wsgi_intercept.mechanize_intercept.Browser()
+        self.browser = Browser(WsgiApp(self.ui))
 
     def tearDown(self):
-        import wsgi_intercept
-        wsgi_intercept.remove_wsgi_intercept('test', 80)
-
         gsm = getGlobalSiteManager()
         gsm.unregisterUtility(self.mail_delivery, IMailDelivery, "Mail")
 
@@ -140,7 +182,7 @@ class BrowseTest(unittest.TestCase):
         self.assertTrue("message has been sent" in csstext(page, 'p'))
 
         self.assertEqual(len(self.ui._tokens), 1)
-        token = self.ui._tokens.keys()[0]
+        token = list(self.ui._tokens.keys())[0]
 
         self.assertEqual(len(self.mail), 1)
         email = parse_email(self.mail[0])
@@ -227,11 +269,11 @@ class BrowseTest(unittest.TestCase):
     @patch('be.ldapadmin.pwreset_tool.datetime')
     def test_token_expiry(self, mock_datetime):
         t0 = datetime(2011, 5, 2, 13, 30, 22)
-        mock_datetime.utcnow.return_value = t0
+        mock_datetime.now.return_value = t0
         token = self.ui._new_token('teh-user')
         link = 'http://test/confirm_email?token=' + token
 
-        mock_datetime.utcnow.return_value = t0 + timedelta(days=1, minutes=1)
+        mock_datetime.now.return_value = t0 + timedelta(days=1, minutes=1)
         br = self.browser
         page = parse_html(br.open(link).read())
 
@@ -240,7 +282,7 @@ class BrowseTest(unittest.TestCase):
     @patch('be.ldapadmin.pwreset_tool.datetime')
     def test_token_expiry_in_form(self, mock_datetime):
         t0 = datetime(2011, 5, 2, 13, 30, 22)
-        mock_datetime.utcnow.return_value = t0
+        mock_datetime.now.return_value = t0
         token = self.ui._new_token('teh-user')
         link = 'http://test/confirm_email?token=' + token
 
@@ -250,7 +292,7 @@ class BrowseTest(unittest.TestCase):
         br['password:utf8:string'] = "NeWpAsS"
         br['password-confirm:utf8:string'] = "NeWpAsS"
 
-        mock_datetime.utcnow.return_value = t0 + timedelta(days=1, minutes=1)
+        mock_datetime.now.return_value = t0 + timedelta(days=1, minutes=1)
         page = parse_html(br.submit().read())
 
         self.assert_invalid_token_response(page)
@@ -294,9 +336,8 @@ class BrowseTest(unittest.TestCase):
             'teh-user', None, "NeWpAsS")
         self.assertTrue("successfully reset" in csstext(page, 'p'))
 
-    @patch('be.ldapadmin.pwreset_tool.NETWORK_NAME')
-    def test_network_name_customization(self, mock_network):
-        mock_network.return_value = 'SINAnet'
+    @patch('be.ldapadmin.ui_common.NETWORK_NAME', 'SINAnet')
+    def test_network_name_customization(self):
         br = self.browser
         page = parse_html(br.open('http://test/').read())
 

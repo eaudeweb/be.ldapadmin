@@ -1,10 +1,11 @@
 ''' test organisations UI '''
 
+import re
 import unittest
 import logging
 from io import StringIO
 from lxml.html.soupparser import fromstring
-from mock import Mock, patch
+from unittest.mock import MagicMock as Mock, patch
 from be import ldapadmin
 from be.ldapadmin.orgs_editor import OrganisationsEditor, CommonTemplateLogic
 from be.ldapadmin.orgs_editor import validate_org_info, VALIDATION_ERRORS
@@ -15,15 +16,18 @@ org_info_fixture = {
     'phone': u"+45 555 2222",
     'fax': u"+45 555 9999",
     'url': u"http://bridge.example.com/",
-    'postal_address': (u"13 Card games road\n"
-                       u"K\xf8benhavn, Danmark\n"),
     'street': u"Card games road",
     'po_box': u"123456",
     'postal_code': u"DK 456789",
-    'country': u"Denmark",
+    'country': "dk",
     'locality': u"K\xf8benhavn",
+    'email': None,
 }
 
+
+
+def plaintext(element):
+    return re.sub(r'\s\s+', ' ', element.text_content()).strip()
 
 def parse_html(html):
     return fromstring(html)
@@ -34,6 +38,8 @@ class StubbedOrganisationsEditor(OrganisationsEditor):
         super(StubbedOrganisationsEditor, self).__init__()
         self._render_template = TemplateRenderer(CommonTemplateLogic)
         self._render_template.wrap = lambda html: "<html>%s</html>" % html
+        # the changelog is a browser view, which needs a real request
+        self._render_template.browserview = lambda context, name: lambda: ''
 
     def absolute_url(self):
         return "URL"
@@ -59,6 +65,11 @@ def session_messages(request):
 
 class OrganisationsUITest(unittest.TestCase):
     def setUp(self):
+        countries = patch.dict(
+            'be.ldapadmin.countries.COUNTRIES',
+            {'dk': {'code': 'dk', 'name': 'Denmark', 'pub_code': 'DK'}})
+        countries.start()
+        self.addCleanup(countries.stop)
         self.ui = StubbedOrganisationsEditor('organisations')
         self.mock_agent = Mock()
         self.mock_agent.all_organisations.return_value = {}
@@ -86,7 +97,8 @@ class OrganisationsUITest(unittest.TestCase):
 
         # txt = lambda xp: page.xpath(xp)[0].text.strip()
         exists = lambda xp: len(page.xpath(xp)) > 0
-        self.assertTrue(exists('//form//input[@name="id"]'))
+        self.assertTrue(exists('//form//input[@name="id:utf8:string"]'))
+        self.assertTrue(exists('//form//input[@name="email:utf8:string"]'))
         self.assertTrue(exists('//form//input[@name="name:utf8:string"]'))
         self.assertTrue(exists('//form//input[@name="url:utf8:string"]'))
         self.assertTrue(exists('//form//input[@name="phone:utf8:string"]'))
@@ -97,59 +109,51 @@ class OrganisationsUITest(unittest.TestCase):
                                '[@name="postal_code:utf8:string"]'))
         self.assertTrue(exists('//form//input[@name="locality:utf8:string"]'))
         self.assertTrue(exists('//form//select[@name="country:utf8:string"]'))
-        self.assertTrue(exists('//form//textarea'
-                               '[@name="postal_address:utf8:string"]'))
 
     @patch('be.ldapadmin.orgs_editor.logged_in_user')
     def test_create_org_submit(self, logged_user):
         logged_user.return_value = "John Doe"
         self.request.form = dict(org_info_fixture)
-        self.request.form['id'] = 'bridge_club'
+        self.request.form['id'] = 'dk_bridge_club'
 
         self.ui.create_organisation(self.request)
 
-        self.mock_agent.create_org.assert_called_once_with('bridge_club',
+        self.mock_agent.create_org.assert_called_once_with('dk_bridge_club',
                                                            org_info_fixture)
         self.request.RESPONSE.redirect.assert_called_with(
-            'URL/organisation?id=bridge_club')
+            'URL/organisation?id=dk_bridge_club')
 
-        self.request.form = {'id': 'bridge_club'}
+        self.request.form = {'id': 'dk_bridge_club'}
         page = parse_html(self.ui.organisation(self.request))
         self.assertEqual(page.xpath('//div[@class="system-msg"]')[0].text,
-                         'Organisation "bridge_club" created successfully.')
-        logmsg = "John Doe CREATED ORGANISATION bridge_club\n"
+                         'Organisation "dk_bridge_club" created successfully.')
+        logmsg = "John Doe CREATED ORGANISATION dk_bridge_club\n"
         self.assertEqual(self.stream.getvalue(), logmsg)
 
     def _verify_org_form_submit_error(self, page, org_info, errors):
         err_msg = page.xpath('//div[@class="error-msg"]')
         self.assertEqual(set(err_div.text for err_div in err_msg), errors)
+        self._verify_org_form_values(page.xpath('//form')[0], org_info)
 
-        form = page.xpath('//form')[0]
+    def _verify_org_form_values(self, form, org_info):
         for name, value in org_info.items():
-            if name == 'postal_address':
+            if value is None or name == 'id':
                 continue
-            if name != 'id':
-                name += ':utf8:string'
-            if name == 'country:utf8:string':
-                form_input = form.xpath(
-                    './/select[@name="%s"]/option[@value="denmark"]' % name)
-                value = value.lower()
+            if name == 'country':
+                xp = './/select[@name="country:utf8:string"]/option[@selected]'
             else:
-                form_input = form.xpath('.//input[@name="%s"]' % name)
-
-            self.assertEqual(form_input[0].attrib['value'], value)
-        form_input = form.xpath(
-            './/textarea[@name="postal_address:utf8:string"]')
-        self.assertEqual(form_input[0].text, org_info['postal_address'])
+                xp = './/input[@name="%s:utf8:string"]' % name
+            self.assertEqual(form.xpath(xp)[0].attrib['value'], value)
 
     @patch('be.ldapadmin.orgs_editor.validate_org_info')
     def test_create_org_submit_invalid(self, mock_validator):
-        self.request.form = dict(org_info_fixture, id='bridge_club')
+        self.request.form = dict(org_info_fixture, id='dk_bridge_club')
         mock_validator.return_value = validation_errors_fixture
 
         self.ui.create_organisation(self.request)
 
-        mock_validator.assert_called_once_with('bridge_club', org_info_fixture)
+        mock_validator.assert_called_once_with('dk_bridge_club', org_info_fixture,
+                                               create_mode=True)
         self.assertEqual(self.mock_agent.create_org.call_count, 0)
         self.request.RESPONSE.redirect.assert_called_with(
             'URL/create_organisation_html')
@@ -161,67 +165,57 @@ class OrganisationsUITest(unittest.TestCase):
                       "Please correct the errors below."])
         for err_values in validation_errors_fixture.values():
             errors.update(err_values)
-        org_info = dict(org_info_fixture, id='bridge_club')
+        org_info = dict(org_info_fixture, id='dk_bridge_club')
         self._verify_org_form_submit_error(page, org_info, errors)
 
     def test_edit_org_form(self):
-        self.request.form = {'id': 'bridge_club'}
+        self.request.form = {'id': 'dk_bridge_club'}
         self.mock_agent.org_info.return_value = dict(org_info_fixture,
-                                                     id='bridge_club')
+                                                     id='dk_bridge_club')
 
         page = parse_html(self.ui.edit_organisation_html(self.request))
 
-        self.mock_agent.org_info.assert_called_once_with('bridge_club')
+        self.mock_agent.org_info.assert_called_once_with('dk_bridge_club')
 
         form = page.xpath('//form')[0]
         self.assertEqual(form.attrib['action'], 'URL/edit_organisation')
         self.assertEqual(form.xpath('//input[@name="id"]')[0].attrib['value'],
-                         'bridge_club')
-        for name, value in org_info_fixture.items():
-            if name == 'postal_address':
-                xp = '//textarea[@name="%s:utf8:string"]' % name
-                frm_value = form.xpath(xp)[0].text
-            elif name == 'country':
-                xp = '//select[@name="%s:utf8:string"]/option' % name.lower()
-                frm_value = form.xpath(xp)[10].text.strip()
-            else:
-                xp = '//input[@name="%s:utf8:string"]' % name
-                frm_value = form.xpath(xp)[0].attrib['value']
-            self.assertEqual(frm_value, value)
+                         'dk_bridge_club')
+        self._verify_org_form_values(form, org_info_fixture)
 
     @patch('be.ldapadmin.orgs_editor.logged_in_user')
     def test_edit_org_submit(self, logged_user):
         logged_user.return_value = "John Doe"
-        self.request.form = dict(org_info_fixture, id='bridge_club')
+        self.request.form = dict(org_info_fixture, id='dk_bridge_club')
 
         self.ui.edit_organisation(self.request)
 
         self.mock_agent.set_org_info.assert_called_once_with(
-            'bridge_club', org_info_fixture)
+            'dk_bridge_club', org_info_fixture)
         self.request.RESPONSE.redirect.assert_called_with(
-            'URL/organisation?id=bridge_club')
+            'URL/organisation?id=dk_bridge_club')
 
-        self.request.form = {'id': 'bridge_club'}
+        self.request.form = {'id': 'dk_bridge_club'}
         page = parse_html(self.ui.organisation(self.request))
         msg = page.xpath('//div[@class="system-msg"]')[0].text
         self.assertTrue(msg.startswith('Organisation saved'))
-        logmsg = "John Doe EDITED ORGANISATION bridge_club\n"
+        logmsg = "John Doe EDITED ORGANISATION dk_bridge_club\n"
         self.assertEqual(self.stream.getvalue(), logmsg)
 
     @patch('be.ldapadmin.orgs_editor.validate_org_info')
     def test_edit_org_submit_invalid(self, mock_validator):
-        self.request.form = dict(org_info_fixture, id='bridge_club')
-        self.request.form['id'] = 'bridge_club'
+        self.request.form = dict(org_info_fixture, id='dk_bridge_club')
+        self.request.form['id'] = 'dk_bridge_club'
         mock_validator.return_value = validation_errors_fixture
 
         self.ui.edit_organisation(self.request)
 
-        mock_validator.assert_called_once_with('bridge_club', org_info_fixture)
+        mock_validator.assert_called_once_with('dk_bridge_club', org_info_fixture)
         self.assertEqual(self.mock_agent.set_org_info.call_count, 0)
         self.request.RESPONSE.redirect.assert_called_with(
-            'URL/edit_organisation_html?id=bridge_club')
+            'URL/edit_organisation_html?id=dk_bridge_club')
 
-        self.request.form = {'id': 'bridge_club'}
+        self.request.form = {'id': 'dk_bridge_club'}
         page = parse_html(self.ui.edit_organisation_html(self.request))
         self.assertEqual(self.mock_agent.org_info.call_count, 0)
 
@@ -229,29 +223,30 @@ class OrganisationsUITest(unittest.TestCase):
                       "Please correct the errors below."])
         for err_values in validation_errors_fixture.values():
             errors.update(err_values)
-        org_info = dict(org_info_fixture, id='bridge_club')
+        org_info = dict(org_info_fixture, id='dk_bridge_club')
         self._verify_org_form_submit_error(page, org_info, errors)
 
     def test_list_organisations(self):
         self.mock_agent.all_organisations.return_value = {
-            'bridge_club': "Bridge club",
-            'poker_club': u"P\xf8ker club",
+            'dk_bridge_club': {'name': "Bridge club", 'country': 'dk'},
+            'dk_poker_club': {'name': "P\xf8ker club", 'country': 'dk'},
         }
 
+        self.request.get.return_value = None  # no country filter
         page = parse_html(self.ui.index_html(self.request))
 
-        orgs_ul = page.xpath('//ul[@class="organisations"]')[0]
-        org_0 = orgs_ul.xpath('li')[0]
-        org_1 = orgs_ul.xpath('li')[1]
-        self.assertTrue("Bridge club" in org_0.text_content())
-        self.assertTrue(u"P\xf8ker club" in org_1.text_content())
-        self.assertEqual(org_0.xpath('a')[0].attrib['href'],
-                         'URL/organisation?id=bridge_club')
+        rows = page.xpath('//div[@class="organisation-listing"]//tbody/tr')
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(plaintext(rows[0].xpath('td')[0]), "Denmark (DK)")
+        self.assertEqual(plaintext(rows[0].xpath('td')[1]), "Bridge club")
+        self.assertEqual(plaintext(rows[1].xpath('td')[1]), "P\xf8ker club")
+        self.assertEqual(rows[0].xpath('td/a')[0].attrib['href'],
+                         'URL/organisation?id=dk_bridge_club')
 
     def test_org_info_page(self):
-        self.request.form = {'id': 'bridge_club'}
+        self.request.form = {'id': 'dk_bridge_club'}
         self.mock_agent.org_info.return_value = dict(org_info_fixture,
-                                                     id='bridge_club')
+                                                     id='dk_bridge_club')
 
         page = parse_html(self.ui.organisation(self.request))
 
@@ -273,97 +268,94 @@ class OrganisationsUITest(unittest.TestCase):
         self.assertEqual(html_value('Postal code:'),
                          org_info_fixture['postal_code'])
         self.assertEqual(html_value('Locality:'), org_info_fixture['locality'])
-        self.assertEqual(html_value('Country:'), org_info_fixture['country'])
-        self.assertEqual(html_value('Full address:'),
-                         org_info_fixture['postal_address'])
 
     def test_rename_org_page(self):
-        self.request.form = {'id': 'bridge_club'}
+        self.request.form = {'id': 'dk_bridge_club'}
         self.mock_agent.org_info.return_value = dict(org_info_fixture,
-                                                     id='bridge_club')
+                                                     id='dk_bridge_club')
 
         page = parse_html(self.ui.rename_organisation_html(self.request))
 
         form = page.xpath('//form[@name="rename_organisation"]')[0]
         self.assertEqual(form.attrib['action'], 'URL/rename_organisation')
         org_id_input = form.xpath('//input[@name="id"]')[0]
-        self.assertEqual(org_id_input.attrib['value'], 'bridge_club')
+        self.assertEqual(org_id_input.attrib['value'], 'dk_bridge_club')
 
     @patch('be.ldapadmin.orgs_editor.logged_in_user')
     def test_rename_org_submit(self, logged_user):
         logged_user.return_value = "John Doe"
-        self.request.form = {'id': 'bridge_club', 'new_id': 'tunnel_club'}
+        self.request.form = {'id': 'dk_bridge_club', 'new_id': 'tunnel_club'}
 
         self.ui.rename_organisation(self.request)
 
-        self.mock_agent.rename_org.assert_called_once_with('bridge_club',
+        self.mock_agent.rename_org.assert_called_once_with('dk_bridge_club',
                                                            'tunnel_club')
         self.request.RESPONSE.redirect.assert_called_with(
             'URL/organisation?id=tunnel_club')
 
-        msg = 'Organisation "bridge_club" renamed to "tunnel_club".'
+        msg = 'Organisation "dk_bridge_club" renamed to "tunnel_club".'
         self.assertEqual(session_messages(self.request), {'info': [msg]})
-        logmsg = "John Doe RENAMED ORGANISATION bridge_club TO tunnel_club\n"
+        logmsg = "John Doe RENAMED ORGANISATION dk_bridge_club TO tunnel_club\n"
         self.assertEqual(self.stream.getvalue(), logmsg)
 
     def test_rename_org_submit_fail(self):
-        self.request.form = {'id': 'bridge_club', 'new_id': 'tunnel_club'}
+        self.request.form = {'id': 'dk_bridge_club', 'new_id': 'tunnel_club'}
         self.mock_agent.rename_org.side_effect = ldapadmin.NameAlreadyExists()
 
         self.ui.rename_organisation(self.request)
 
-        self.mock_agent.rename_org.assert_called_once_with('bridge_club',
+        self.mock_agent.rename_org.assert_called_once_with('dk_bridge_club',
                                                            'tunnel_club')
         self.request.RESPONSE.redirect.assert_called_with(
-            'URL/organisation?id=bridge_club')
+            'URL/organisation?id=dk_bridge_club')
 
-        msg = ('Organisation "bridge_club" could not be renamed because '
+        msg = ('Organisation "dk_bridge_club" could not be renamed because '
                '"tunnel_club" already exists.')
         self.assertEqual(session_messages(self.request), {'error': [msg]})
 
     def test_rename_org_submit_crash(self):
-        self.request.form = {'id': 'bridge_club', 'new_id': 'tunnel_club'}
+        self.request.form = {'id': 'dk_bridge_club', 'new_id': 'tunnel_club'}
         self.mock_agent.rename_org.side_effect = ldapadmin.OrgRenameError()
 
         self.ui.rename_organisation(self.request)
 
-        self.mock_agent.rename_org.assert_called_once_with('bridge_club',
+        self.mock_agent.rename_org.assert_called_once_with('dk_bridge_club',
                                                            'tunnel_club')
         self.request.RESPONSE.redirect.assert_called_with('URL/')
 
-        msg = ('Renaming of "bridge_club" failed mid-way. Some data may be '
+        msg = ('Renaming of "dk_bridge_club" failed mid-way. Some data may be '
                'inconsistent. Please inform a system administrator.')
         self.assertEqual(session_messages(self.request), {'error': [msg]})
 
     def test_delete_org_page(self):
         import re
-        self.request.form = {'id': 'bridge_club'}
+        self.request.form = {'id': 'dk_bridge_club'}
         self.mock_agent.org_info.return_value = dict(org_info_fixture,
-                                                     id='bridge_club')
+                                                     id='dk_bridge_club')
 
         page = parse_html(self.ui.delete_organisation_html(self.request))
 
         txt = page.xpath('//p[@class="confirm-delete"]')[0].text_content()
         self.assertEqual(re.sub(r'\s+', ' ', txt.strip()),
                          ("Are you sure you want to delete the organisation "
-                          "Ye olde bridge club (bridge_club)?"))
+                          "Ye olde bridge club (dk_bridge_club)?"))
         id_input = page.xpath('//form//input[@name="id"]')[0]
-        self.assertEqual(id_input.attrib['value'], 'bridge_club')
+        self.assertEqual(id_input.attrib['value'], 'dk_bridge_club')
 
     @patch('be.ldapadmin.orgs_editor.logged_in_user')
     def test_delete_org_submit(self, logged_user):
         logged_user.return_value = "John Doe"
-        self.request.form = {'id': 'bridge_club'}
+        self.request.form = {'id': 'dk_bridge_club'}
 
         self.ui.delete_organisation(self.request)
 
-        self.mock_agent.delete_org.assert_called_once_with('bridge_club')
+        self.mock_agent.delete_org.assert_called_once_with('dk_bridge_club')
         self.request.RESPONSE.redirect.assert_called_with('URL/')
 
         page = parse_html(self.ui.index_html(self.request))
         self.assertEqual(page.xpath('//div[@class="system-msg"]')[0].text,
-                         'Organisation "bridge_club" has been deleted.')
-        logmsg = "John Doe DELETED ORGANISATION bridge_club\n"
+                         'Organisation "dk_bridge_club" has been deleted.')
+        logmsg = "John Doe DELETED ORGANISATION dk_bridge_club\n"
         self.assertEqual(self.stream.getvalue(), logmsg)
 
 
@@ -379,14 +371,14 @@ class OrganisationsUIMembersTest(unittest.TestCase):
 
         user_list = {
             'anne': {'id': 'anne', 'first_name': "Anne",
-                     'last_name': "Tester"},
+                     'last_name': "Tester", 'status': ''},
             'jsmith': {'id': 'jsmith', 'first_name': "Joe",
-                       'last_name': "Smith"},
+                       'last_name': "Smith", 'status': ''},
         }
         self.mock_agent.members_in_org.return_value = sorted(user_list.keys())
         self.mock_agent.user_info.side_effect = user_list.get
         self.mock_agent.org_info.return_value = dict(org_info_fixture,
-                                                     id='bridge_club')
+                                                     id='dk_bridge_club')
 
         self.stream = StringIO()
         self.handler = logging.StreamHandler(self.stream)
@@ -402,49 +394,49 @@ class OrganisationsUIMembersTest(unittest.TestCase):
         self.handler.close()
 
     def test_enumerate_members(self):
-        self.request.form = {'id': 'bridge_club'}
+        self.request.form = {'id': 'dk_bridge_club'}
 
         page = parse_html(self.ui.members_html(self.request))
 
-        self.mock_agent.members_in_org.assert_called_once_with('bridge_club')
+        self.mock_agent.members_in_org.assert_called_once_with('dk_bridge_club')
         self.mock_agent.user_info.assert_called_with('jsmith')
 
         form = page.xpath('//form')[0]
         self.assertEqual(form.attrib['action'],
                          'URL/remove_members')
         self.assertEqual(form.xpath('.//input[@name="id"]')[0].attrib['value'],
-                         'bridge_club')
+                         'dk_bridge_club')
 
-        members_li = page.xpath('.//ul[@class="organisation-members"]/li')
-        self.assertTrue("Anne Tester" in members_li[0].text_content())
-        self.assertTrue("Joe Smith" in members_li[1].text_content())
+        rows = form.xpath('.//table/tbody/tr')
+        self.assertTrue("Anne Tester" in rows[0].text_content())
+        self.assertTrue("Joe Smith" in rows[1].text_content())
 
-        anne_checkbox = members_li[0].xpath('.//input')[0]
+        anne_checkbox = rows[0].xpath('.//input')[0]
         self.assertEqual(anne_checkbox.attrib['name'], 'user_id:list')
         self.assertEqual(anne_checkbox.attrib['value'], 'anne')
 
     @patch('be.ldapadmin.orgs_editor.logged_in_user')
     def test_remove_members_submit(self, logged_user):
         logged_user.return_value = "John Doe"
-        self.request.form = {'id': 'bridge_club', 'user_id': ['jsmith']}
+        self.request.form = {'id': 'dk_bridge_club', 'user_id': ['jsmith']}
 
         self.ui.remove_members(self.request)
 
         self.mock_agent.remove_from_org.assert_called_once_with(
-            'bridge_club', ['jsmith'])
+            'dk_bridge_club', ['jsmith'])
         self.request.RESPONSE.redirect.assert_called_with(
-            'URL/members_html?id=bridge_club')
+            'URL/members_html?id=dk_bridge_club')
 
-        self.request.form = {'id': 'bridge_club'}
+        self.request.form = {'id': 'dk_bridge_club'}
         page = parse_html(self.ui.members_html(self.request))
         self.assertEqual(page.xpath('//div[@class="system-msg"]')[0].text,
-                         'Removed 1 members from organisation "bridge_club".')
+                         'Removed 1 members from organisation "dk_bridge_club".')
         logmsg = ("John Doe REMOVED MEMBERS ['jsmith'] "
-                  "FROM ORGANISATION bridge_club\n")
+                  "FROM ORGANISATION dk_bridge_club\n")
         self.assertEqual(self.stream.getvalue(), logmsg)
 
     def test_add_members_html(self):
-        self.request.form = {'id': 'bridge_club', 'search_query': u"smith"}
+        self.request.form = {'id': 'dk_bridge_club', 'search_query': u"smith"}
         self.mock_agent.search_user.return_value = [
             {'id': 'anne', 'first_name': "Anne", 'last_name': "Smith"},
             {'id': 'jsmith', 'first_name': "Joe", 'last_name': "Something"},
@@ -472,19 +464,19 @@ class OrganisationsUIMembersTest(unittest.TestCase):
         self.assertEqual(anne_checkbox.attrib['value'], 'anne')
 
     def test_add_members_submit(self):
-        self.request.form = {'id': 'bridge_club', 'user_id': ['jsmith']}
+        self.request.form = {'id': 'dk_bridge_club', 'user_id': ['jsmith']}
 
         self.ui.add_members(self.request)
 
         self.mock_agent.add_to_org.assert_called_once_with(
-            'bridge_club', ['jsmith'])
+            'dk_bridge_club', ['jsmith'])
         self.request.RESPONSE.redirect.assert_called_with(
-            'URL/members_html?id=bridge_club')
+            'URL/members_html?id=dk_bridge_club')
 
-        self.request.form = {'id': 'bridge_club'}
+        self.request.form = {'id': 'dk_bridge_club'}
         page = parse_html(self.ui.members_html(self.request))
         self.assertEqual(page.xpath('//div[@class="system-msg"]')[0].text,
-                         'Added 1 members to organisation "bridge_club".')
+                         'Added 1 members to organisation "dk_bridge_club".')
 
 
 class OrganisationsValidationTest(unittest.TestCase):
@@ -522,12 +514,16 @@ class OrganisationsValidationTest(unittest.TestCase):
         self._test_good_values('postal_code', ['', 'DK 1Nu 456', 'ro31-23'])
 
     def test_id(self):
-        for bad_id in ['', '123', 'asdf123', 'my(org)', u'my_\xf8rg']:
-            err = validate_org_info(bad_id, dict(org_info_fixture))
+        # the id is checked when creating; it starts with a country code
+        for bad_id in ['', '123', 'asdf123', 'my(org)', 'my_\xf8rg', 'a',
+                       '_myorg', 'dk_', 'dk-org', 'DK_org']:
+            err = validate_org_info(bad_id, dict(org_info_fixture),
+                                    create_mode=True)
             self.assertEqual(err['id'], [VALIDATION_ERRORS['id']],
                              "Missed bad org_id %r" % (bad_id,))
 
-        for ok_id in ['a', 'my_org', '_myorg', '_', 'yet_another___one']:
-            err = validate_org_info(ok_id, dict(org_info_fixture))
+        for ok_id in ['dk_org', 'my_org', 'ro_eau_de_web', 'be_a___b']:
+            err = validate_org_info(ok_id, dict(org_info_fixture),
+                                    create_mode=True)
             self.assertTrue('id' not in err,
                             "False positive org_id %r" % (ok_id,))
