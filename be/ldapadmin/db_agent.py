@@ -214,7 +214,32 @@ def parse_membership_type(mt) -> dict:
 
     return result
 
-class StreamingLDAPObject(LDAPObject, ResultProcessor):
+def _to_bytes(values):
+    """LDAP attribute values as bytes; python-ldap 3 rejects str."""
+    if values is None:
+        return None
+    if isinstance(values, (str, bytes)):
+        values = [values]
+    return [v.encode('utf-8') if isinstance(v, str) else v for v in values]
+
+
+class BytesValuesMixin:
+    """Encode str attribute values on add and modify."""
+
+    def add_ext(self, dn, modlist, serverctrls=None, clientctrls=None):
+        modlist = [(attr, _to_bytes(values)) for attr, values in modlist]
+        return super().add_ext(dn, modlist, serverctrls, clientctrls)
+
+    def modify_ext(self, dn, modlist, serverctrls=None, clientctrls=None):
+        modlist = [(op, attr, _to_bytes(values)) for op, attr, values in modlist]
+        return super().modify_ext(dn, modlist, serverctrls, clientctrls)
+
+
+class LDAPConnection(BytesValuesMixin, LDAPObject):
+    pass
+
+
+class StreamingLDAPObject(BytesValuesMixin, LDAPObject, ResultProcessor):
     """ Useful in getting more results by bypassing
         results size restrictions"""
     pass
@@ -251,7 +276,7 @@ class UsersDB(object):
         if LDAP_PROTOCOL == 'ldaps':
             conn = StreamingLDAPObject('ldaps://' + server)
         else:
-            conn = ldap.initialize('ldap://' + server)
+            conn = LDAPConnection('ldap://' + server)
         conn.protocol_version = ldap.VERSION3
         conn.timeout = LDAP_TIMEOUT
 

@@ -26,6 +26,8 @@
   [dumitval]
 * Find organisations by the organizationGroup object class used in the LDAP
   [dumitval]
+* Send LDAP attribute values as bytes when adding and modifying entries
+  [dumitval]
 
 0.1 (2021-04-03)
 ------------------------
