@@ -79,7 +79,7 @@
                         </thead>
                         <tbody>
                             <tal:block repeat="role options/roles">
-                                <tr tal:attributes="class python:('even', 'odd')[int(path('repeat/role/odd'))]">
+                                <tr tal:attributes="class python:('even', 'odd')[bool(path('repeat/role/odd'))]">
                                     <td tal:content="python: role[0]" nowrap="nowrap" />
                                     <td tal:content="python: role[1]" />
                                 </tr>
