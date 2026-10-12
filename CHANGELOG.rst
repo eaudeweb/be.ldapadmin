@@ -17,6 +17,7 @@
 * Group "All members" export by role [batranud]
 * Include role information in export regardless of subroles option [batranud]
 * Link to role details instead of just displaying the role id [valipod]
+* Use PEP 420 namespace packages [dumitval]
 
 0.1 (2021-04-03)
 ------------------------

@@ -1,11 +1,11 @@
 ''' be.ldapadmin installer '''
-from setuptools import setup, find_packages
+from setuptools import setup, find_namespace_packages
 
 setup(name='be.ldapadmin',
       version='0.2',
       author='Eau de Web',
       author_email='office@eaudeweb.ro',
-      packages=find_packages(),
+      packages=find_namespace_packages(include=['be.*']),
       include_package_data=True,
       zip_safe=False,
       install_requires=[
