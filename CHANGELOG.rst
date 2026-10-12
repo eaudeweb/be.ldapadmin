@@ -1,4 +1,7 @@
-1.0 (unreleased)
+1.1 (unreleased)
+----------------
+
+1.0 (2026-10-12)
 ----------------
 * Port to Python 3 and Zope 5 [dumitval]
 * Require naaya.ldapdump >= 2.0.0, allow newer jellyfish releases [dumitval]
