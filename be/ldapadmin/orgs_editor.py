@@ -8,7 +8,7 @@ import logging
 import operator
 import os
 import re
-from io import StringIO
+from io import BytesIO
 from AccessControl import ClassSecurityInfo
 from AccessControl.Permissions import view, view_management_screens
 from AccessControl.unauthorized import Unauthorized
@@ -275,7 +275,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
 
             row_counter += i + 2
 
-        out = StringIO()
+        out = BytesIO()
         wb.save(out)
         out.seek(0)
         out = out.read()
@@ -358,7 +358,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         users_sheet.col(1).set_width(6000)
         users_sheet.col(2).set_width(9000)
 
-        out = StringIO()
+        out = BytesIO()
         wb.save(out)
         out.seek(0)
         out = out.read()

@@ -1,4 +1,4 @@
-0.2 (unreleased)
+1.0 (unreleased)
 ------------------------
 * Reinstate role_id as grouping, sorting criterion on Excel export [valipod]
 * Highlight deactivated roles: set role status to "Terminated" on
@@ -19,6 +19,8 @@
 * Link to role details instead of just displaying the role id [valipod]
 * Use PEP 420 namespace packages [dumitval]
 * Fix the country options on Python 3 [dumitval]
+* Fix the users search page on Python 3 [dumitval]
+* Fix the organisations Excel exports on Python 3 [dumitval]
 
 0.1 (2021-04-03)
 ------------------------
