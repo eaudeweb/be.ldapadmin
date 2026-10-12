@@ -45,10 +45,7 @@ from be.ldapadmin.ui_common import extend_crumbs, TemplateRendererNoWrap
 from be.ldapadmin.constants import MAIL_ADDRESS_FROM, HELPDESK_EMAIL
 from be.ldapadmin.ldapdump import get_objects_by_ldap_dump
 
-try:
-    import simplejson as json
-except ImportError:
-    import json
+import json
 
 
 log = logging.getLogger('users_admin')

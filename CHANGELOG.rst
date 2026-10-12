@@ -32,6 +32,7 @@
 * Replace the deprecated datetime.utcnow [dumitval]
 * Fix the user create and edit forms on Python 3 [dumitval]
 * Fix the role users CSV export on Python 3 [dumitval]
+* Use the standard library json instead of simplejson [dumitval]
 
 0.1 (2021-04-03)
 ------------------------

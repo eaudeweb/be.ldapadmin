@@ -38,10 +38,7 @@ from be.ldapadmin.ui_common import get_role_name, roles_list_to_text
 from be.ldapadmin.logic_common import _is_authenticated, logged_in_user
 from be.ldapadmin.db_agent import RoleNotFound, UserNotFound
 
-try:
-    import json
-except ImportError:
-    import simplejson as json
+import json
 
 
 cfg = getConfiguration()
