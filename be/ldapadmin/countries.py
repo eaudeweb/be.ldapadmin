@@ -50,7 +50,7 @@ def get_country_options(country=None):
     then countries sorted by name """
     if country:
         country = [country]
-    countries = COUNTRIES.items()
+    countries = list(COUNTRIES.items())
     if country:
         return [country_data for country_data in countries
                 if country_data[0] in country]
