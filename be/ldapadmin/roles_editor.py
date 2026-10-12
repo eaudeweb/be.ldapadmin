@@ -500,7 +500,7 @@ class RolesEditor(Folder):
         filename = 'LDAP users in %s.csv' % pattern.replace('*', 'ANY')
         REQUEST.RESPONSE.setHeader("Content-Disposition",
                                    "attachment; filename=\"%s\"" % filename)
-        return codecs.BOM_UTF8 + output_file.getvalue()
+        return codecs.BOM_UTF8 + output_file.getvalue().encode('utf-8')
 
     security.declareProtected(ldap_edit_roles, 'import_xls')
 
