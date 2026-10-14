@@ -1,5 +1,23 @@
 1.1 (unreleased)
 ----------------
+* Fix generate_user_id failing on min(str, int) and string.lowercase
+  [dumitval]
+* Read countries.json as UTF-8 [dumitval]
+* Fix create_user adding the user to one organisation per character when a
+  single organisation is selected [dumitval]
+* Fix find_duplicates failing when first name, last name or email is
+  missing [dumitval]
+* Fix the table-user-info macro failing on the undefined role_id when the
+  membership type column is hidden (find_duplicates) [dumitval]
+* Remove duplicate addresses from the bulk_get_emails result [dumitval]
+* Read the "Telephone Number" column of the bulk user import template
+  [dumitval]
+* Fix remove_from_org failing on NO_SUCH_ATTRIBUTE: use e.args[0]
+  [dumitval]
+* Decode the uid read from LDAP in _user_id for non-uid RDNs [dumitval]
+* Save the remove_permittedPerson change record on the user DN instead of
+  the user id [dumitval]
+* Remove the unused UsersAdmin.change_password views [dumitval]
 
 1.0 (2026-10-12)
 ----------------

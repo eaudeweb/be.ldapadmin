@@ -26,12 +26,14 @@ def load_countries():
     """ Load countries from json file in memory """
     global COUNTRIES
     try:
-        f = open(os.path.join(LDAP_DISK_STORAGE, "countries.json"), "r")
+        f = open(os.path.join(LDAP_DISK_STORAGE, "countries.json"), "r",
+                 encoding="utf-8")
         f.close()
     except (IOError, ValueError):
         raise
     else:
-        f = open(os.path.join(LDAP_DISK_STORAGE, "countries.json"), "r")
+        f = open(os.path.join(LDAP_DISK_STORAGE, "countries.json"), "r",
+                 encoding="utf-8")
         data = json.load(f)
         f.close()
         COUNTRIES = {}

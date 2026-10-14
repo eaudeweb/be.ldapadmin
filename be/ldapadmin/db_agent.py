@@ -397,14 +397,14 @@ class UsersDB(object):
             user_id = user_dn[len('uid='): - (len(self._user_dn_suffix) + 1)]
         elif 'uid' in attr:
             # e.g. infoMAP LDAP, attr-s already fetched and passed here
-            user_id = attr['uid'][-1]
+            user_id = self._to_str(attr['uid'][-1])
         else:
             # e.g. infoMAP LDAP, we need to fetch uid attribute of user
             result = self.conn.search_s(user_dn, ldap.SCOPE_BASE,
                                         attrlist=('uid',))
             assert len(result) == 1, "Not found dn: %s" % user_dn
             dn, attr = result[0]
-            user_id = attr['uid'][-1]
+            user_id = self._to_str(attr['uid'][-1])
 
         assert ',' not in user_id
         return user_id
@@ -1545,7 +1545,7 @@ class UsersDB(object):
                     result = self.conn.modify_s(org_dn, changes)
                     assert result[:2] == (ldap.RES_MODIFY, [])
                 except ldap.NO_SUCH_ATTRIBUTE as e:
-                    if 'no such value' not in e[0]['info']:
+                    if 'no such value' not in e.args[0]['info']:
                         raise
 
         for user_id, user_dn in users:
@@ -2237,7 +2237,7 @@ class UsersDB(object):
             (ldap.MOD_DELETE, 'permittedPerson', [user_dn]),
         ))
 
-        self.add_change_record(user_id, REMOVED_AS_PERMITTED_PERSON,
+        self.add_change_record(user_dn, REMOVED_AS_PERMITTED_PERSON,
                                {'role': role_id})
 
     @log_ldap_exceptions

@@ -77,14 +77,14 @@ def generate_user_id(first_name, last_name, agent, id_list):
         '-', '').replace("'", "").replace(" ", "")
     last_name = unidecode(last_name).replace(
         '-', '').replace("'", "").replace(" ", "")
-    min_first_length = min(first_name, 3)
+    min_first_length = min(len(first_name), 3)
     uid1 = last_name[:8 - min_first_length]
     uid2 = first_name[:8 - len(uid1)]
     base_uid = (uid1 + uid2).lower()
     if not(list(agent.existing_usernames([base_uid])) or base_uid in id_list):
         return base_uid
     for i in range(8):
-        for letter in string.lowercase:
+        for letter in string.ascii_lowercase:
             new_uid = base_uid[:8 - i - 1] + letter + base_uid[8 - i:]
             if not(list(agent.existing_usernames([new_uid])) or
                     new_uid in id_list):
@@ -406,6 +406,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 if org and not (org in agent_orgs):
                     orgs.append({'id': org, 'text': org, 'text_native': '',
                                  'ldap': False})
+            form_data['organisation'] = form_orgs
         else:
             form_data['organisation'] = []
         choices = [('-', '-')]
@@ -496,7 +497,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         lname = REQUEST.form.get('last_name', '')
         email = REQUEST.form.get('email', '')
 
-        # duplicate_records = []
+        duplicates_records = []
 
         if fname and lname and email:
             duplicates_records = self._find_duplicates(fname, lname, email)
@@ -783,49 +784,6 @@ class UsersAdmin(SimpleItem, PropertyManager):
 
         REQUEST.RESPONSE.redirect(self.absolute_url() + '/')
 
-    security.declareProtected(ldap_edit_users, 'change_password')
-
-    def change_password(self, REQUEST):
-        """ View for changing user password """
-        id = REQUEST.form['id']
-        agent = self._get_ldap_agent()
-        user = agent.user_info(id)
-        options = {'user': user, 'password': generate_password()}
-
-        self._set_breadcrumbs(self._user_bread(id, [("Change Password", '#')]))
-        return self._render_template('zpt/users/change_password.zpt',
-                                     **options)
-
-    security.declareProtected(ldap_edit_users, 'change_password_action')
-
-    def change_password_action(self, REQUEST):
-        """ Performing the delete action """
-        id = REQUEST.form['id']
-        agent = self._get_ldap_agent(bind=True)
-        password = str(REQUEST.form['password'])
-        with agent.new_action:
-            agent.set_user_password(id, None, password)
-
-        user_info = agent.user_info(id)
-        addr_from = MAIL_ADDRESS_FROM
-        addr_to = user_info['email']
-        email_password_body = self.email_password(user_info['first_name'],
-                                                  password, 'change')
-        message = _create_plain_message(email_password_body)
-        message['From'] = addr_from
-        message['To'] = addr_to
-        message['Subject'] = "%s Account - New password" % NETWORK_NAME
-        try:
-            mailer = getUtility(IMailDelivery, name="Mail")
-            mailer.send(addr_from, split_to_list(addr_to), message.as_string())
-        except ComponentLookupError:
-            mailer = getUtility(IMailDelivery, name="naaya-mail-delivery")
-            mailer.send(addr_from, split_to_list(addr_to), message)
-
-        _set_session_message(REQUEST, 'info',
-                             'Password changed for "%s".' % id)
-        REQUEST.RESPONSE.redirect(self.absolute_url() + '/')
-
     security.declareProtected(ldap_edit_users, 'bulk_check_username')
 
     def bulk_check_username(self, REQUEST):
@@ -882,9 +840,9 @@ class UsersAdmin(SimpleItem, PropertyManager):
             if members:
                 for user_id in members:
                     try:
-                        user_info = agent.user_info(user_id)
-                        if user_info not in bulk_emails:
-                            bulk_emails.append(str(user_info['email']))
+                        email = str(agent.user_info(user_id)['email'])
+                        if email not in bulk_emails:
+                            bulk_emails.append(email)
                     except (NO_SUCH_OBJECT, UserNotFound):
                         pass
 

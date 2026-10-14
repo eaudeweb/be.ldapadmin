@@ -102,7 +102,7 @@
                 <td>
                     <span tal:content="user_info/organisation" />
                 </td>
-                <td class="membership-type" tal:condition="showMembershipType" tal:define="mt python:user_info['membership_type'].get(role_id)">
+                <td class="membership-type" tal:condition="showMembershipType" tal:define="mt python:user_info['membership_type'].get(role_id) if showMembershipType else None">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span class="membership-type-value" tal:content="python:mt or '-'" />
                         <tal:editMT tal:condition="can_edit_members">
