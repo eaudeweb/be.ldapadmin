@@ -19,8 +19,15 @@
       </div>
 
       <div class="field-inline">
-        <label for="restore_roles">Restore user roles</label>
-        <input type="checkbox" name="restore_roles" checked="checked" />
+        <input type="radio" name="restore_roles" id="restore_all"
+               value="on" checked="checked" />
+        <label for="restore_all">Restore all: organisations, role
+          memberships, permittedPerson in roles and role ownership</label>
+      </div>
+      <div class="field-inline">
+        <input type="radio" name="restore_roles" id="restore_nothing"
+               value="" />
+        <label for="restore_nothing">Restore nothing</label>
       </div>
 
       <div class="field">

@@ -24,7 +24,6 @@ import deform
 import jellyfish
 import ldap
 from unidecode import unidecode
-import xlrd
 from transliterate import translit, get_available_language_codes
 from be.ldapadmin.schema import user_info_schema, _uid_node, _password_node
 from be.ldapadmin.constants import NETWORK_NAME, USERS_SPECIFIC
@@ -38,6 +37,8 @@ from be.ldapadmin.db_agent import ACCEPTED_SEARCH_FIELDS, UserNotFound
 from be.ldapadmin.countries import get_country_options
 from be.ldapadmin.import_export import excel_headers_to_object
 from be.ldapadmin.import_export import generate_excel
+from be.ldapadmin.import_export import read_excel_rows
+from be.ldapadmin.import_export import XLSX_CONTENT_TYPE
 from be.ldapadmin.import_export import set_response_attachment
 from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import SessionMessages, TemplateRenderer
@@ -142,6 +143,19 @@ SESSION_FORM_ERRORS = SESSION_PREFIX + '.form_errors'
 
 def _set_session_message(request, msg_type, msg):
     SessionMessages(request, SESSION_MESSAGES).add(msg_type, msg)
+
+
+def _restored_summary(restored):
+    """ Describe the result of agent.enable_user(..., restore_roles=True) """
+    labels = [('organisations', 'organisations'), ('roles', 'roles'),
+              ('roles_permittedPerson', 'permittedPerson in roles'),
+              ('roles_owner', 'owner of roles')]
+    parts = ['%s %s' % (label, ', '.join(restored.get(key) or []) or '-')
+             for key, label in labels]
+    if restored.get('skipped_roles'):
+        parts.append('skipped deleted roles %s'
+                     % ', '.join(restored['skipped_roles']))
+    return '; '.join(parts)
 
 
 # this class should be called UsersEditor, similar to OrganisationsEditor
@@ -747,7 +761,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         restore_roles = REQUEST.form.get('restore_roles')
         agent = self._get_ldap_agent(bind=True)
         with agent.new_action():
-            agent.enable_user(id, restore_roles=restore_roles)
+            restored = agent.enable_user(id, restore_roles=restore_roles)
 
         log.info("%s ENABLED USER %s", logged_in_user(REQUEST), id)
 
@@ -775,7 +789,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
 
         when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if restore_roles:
-            extra = ', previous roles restored'
+            extra = ', restored: %s' % _restored_summary(restored)
         else:
             extra = ', previous roles NOT restored'
         _set_session_message(REQUEST, 'info',
@@ -994,24 +1008,20 @@ class BulkUserImporter(BrowserView):
         """ Force download of excel template """
 
         ret = generate_excel(self.TEMPLATE_COLUMNS, [[]])
-        content_type = 'application/vnd.ms-excel'
-        filename = 'create_users_template.xls'
+        filename = 'create_users_template.xlsx'
 
         set_response_attachment(
-            self.request.RESPONSE, filename, content_type, len(ret))
+            self.request.RESPONSE, filename, XLSX_CONTENT_TYPE, len(ret))
 
         return ret
 
     def read_xls(self, data):
         agent = self.context._get_ldap_agent(bind=True)
-        wb = xlrd.open_workbook(file_contents=data)
-        ws = wb.sheets()[0]
-        header = ws.row_values(0)
+        sheet_rows = read_excel_rows(data)
+        header = sheet_rows[0]
         if not (len(header) == len(self.TEMPLATE_COLUMNS)):
             raise ValueError("wrong number of columns")
-        rows = []
-        for i in range(ws.nrows)[1:]:
-            rows.append(ws.row_values(i))
+        rows = sheet_rows[1:]
 
         result = []
         id_list = []

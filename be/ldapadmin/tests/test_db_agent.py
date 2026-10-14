@@ -2,7 +2,7 @@
 import json
 import unittest
 from datetime import datetime
-from unittest.mock import MagicMock as Mock, patch
+from unittest.mock import MagicMock as Mock, call, patch
 
 import ldap
 
@@ -112,6 +112,8 @@ class ReadValuesTest(unittest.TestCase):
 ROLES_DN = 'ou=DATA,ou=america,o=IRCroles,dc=CIRCA,dc=local'
 ANNE_DN = 'uid=anne,' + USERS_DN
 ORG_DN = 'cn=dk_org,' + ORGS_DN
+PLACES_DN = 'ou=places,' + ROLES_DN
+BANK_DN = 'ou=places-bank,' + PLACES_DN
 
 
 def ldap_entries(entries):
@@ -321,44 +323,144 @@ class DisableEnableTest(AgentTestBase):
 
     def test_disable_user(self):
         user = {'email': 'anne@example.com', 'membership_type': {'r': 'M'}}
-        self.conn.search_s.side_effect = ldap_entries({ANNE_DN: {}})
+        entries = ldap_entries({ANNE_DN: {}})
+
+        def search_s(dn, scope, filterstr=None, attrlist=None):
+            if filterstr and 'permittedPerson=' in filterstr:
+                return [(PLACES_DN, {})]
+            if filterstr and 'owner=' in filterstr:
+                return [(PLACES_DN, {}), (BANK_DN, {})]
+            return entries(dn, scope, filterstr, attrlist)
+        self.conn.search_s.side_effect = search_s
         with patch.object(UsersDB, 'user_info', return_value=user), \
                 patch.object(UsersDB, 'user_organisations',
                              return_value=iter([ORG_DN])), \
                 patch.object(UsersDB, 'list_member_roles',
                              return_value=['places', 'places-bank']), \
                 patch.object(UsersDB, 'remove_from_org') as remove_org, \
-                patch.object(UsersDB, 'remove_from_role') as remove_role:
+                patch.object(UsersDB, 'remove_from_role') as remove_role, \
+                patch.object(UsersDB, 'remove_permittedPerson') as remove_pp, \
+                patch.object(UsersDB, 'remove_role_owner') as remove_owner:
             remove_role.side_effect = [None, ValueError]
             self.db.disable_user('anne')
         remove_org.assert_called_once_with('dk_org', ['anne'])
         self.assertEqual(len(remove_role.call_args_list), 2)
+        remove_pp.assert_called_once_with('places', 'anne')
+        self.assertEqual(remove_owner.call_args_list,
+                         [call('places', 'anne'), call('places-bank', 'anne')])
         record, = self.change_records(ANNE_DN)
         self.assertEqual(record['action'], DISABLE_ACCOUNT)
         self.assertEqual(record['data']['organisations'], ['dk_org'])
         self.assertEqual(record['data']['roles'], ['places', 'places-bank'])
+        self.assertEqual(record['data']['roles_permittedPerson'], ['places'])
+        self.assertEqual(record['data']['roles_owner'],
+                         ['places', 'places-bank'])
         self.assertEqual(record['data']['membership_type'], {'r': 'M'})
         self.assertIn((ldap.MOD_REPLACE, 'employeeType', 'disabled'),
                       self.modifications(ANNE_DN)[-1])
         dn, old_pw, new_pw = self.conn.passwd_s.call_args[0]
         self.assertEqual(len(new_pw), 20)
 
-    def test_enable_user_restores_roles(self):
-        meta = [{'action': DISABLE_ACCOUNT, 'data': {
+    def test_reset_user_roles_stores_role_ids(self):
+        def search_s(dn, scope, filterstr=None, attrlist=None):
+            if filterstr and 'permittedPerson=' in filterstr:
+                return [(BANK_DN, {})]
+            if filterstr and 'owner=' in filterstr:
+                return [(PLACES_DN, {})]
+            return ldap_entries({ANNE_DN: {}})(dn, scope)
+        self.conn.search_s.side_effect = search_s
+        with patch.object(UsersDB, 'user_info',
+                          return_value={'email': 'anne@example.com'}), \
+                patch.object(UsersDB, 'list_member_roles', return_value=[]), \
+                patch.object(UsersDB, 'remove_permittedPerson'), \
+                patch.object(UsersDB, 'remove_role_owner'):
+            self.db.reset_user_roles('anne')
+        record, = self.change_records(ANNE_DN)
+        self.assertEqual(record['data']['roles_permittedPerson'],
+                         ['places-bank'])
+        self.assertEqual(record['data']['roles_owner'], ['places'])
+
+    def enable(self, data, restore_roles, existing=(PLACES_DN, BANK_DN)):
+        meta = [{'action': DISABLE_ACCOUNT, 'data': data}]
+        entries = {ANNE_DN: {'registeredAddress': [json.dumps(meta).encode()]}}
+        entries.update((dn, {}) for dn in existing)
+        self.conn.search_s.side_effect = ldap_entries(entries)
+        with patch.object(UsersDB, 'add_to_org') as self.add_org, \
+                patch.object(UsersDB, 'add_to_role') as self.add_role, \
+                patch.object(UsersDB, 'add_permittedPerson') as self.add_pp:
+            return self.db.enable_user('anne', restore_roles=restore_roles)
+
+    def owner_additions(self):
+        return [(dn, mods) for dn, mods in
+                (c[0] for c in self.conn.modify_s.call_args_list)
+                if any(m[1] == 'owner' for m in mods)]
+
+    def test_enable_user_restores_all(self):
+        restored = self.enable({
             'email': 'anne@example.com', 'organisations': ['dk_org'],
-            'roles': ['places-bank', 'gone'], 'roles_permittedPerson': [],
-            'roles_owner': [], 'membership_type': {'places-bank': 'M'}}}]
-        self.conn.search_s.side_effect = ldap_entries({
-            ANNE_DN: {'registeredAddress': [json.dumps(meta).encode()]}})
-        with patch.object(UsersDB, 'add_to_org') as add_org, \
-                patch.object(UsersDB, 'add_to_role') as add_role:
-            add_role.side_effect = [None, ValueError]
-            self.db.enable_user('anne', restore_roles=True)
-        add_org.assert_called_once_with('dk_org', ['anne'])
-        self.assertEqual(add_role.call_args_list[0][0],
-                         ('places-bank', 'user', 'anne', 'M'))
+            'roles': ['places', 'places-bank', 'gone'],
+            'roles_permittedPerson': ['places-bank'],
+            'roles_owner': ['places', 'gone'],
+            'membership_type': {'places-bank': 'M'}}, restore_roles=True)
+        self.add_org.assert_called_once_with('dk_org', ['anne'])
+        self.assertEqual(self.add_role.call_args_list, [
+            call('places', 'user', 'anne', None),
+            call('places-bank', 'user', 'anne', 'M')])
+        self.add_pp.assert_called_once_with('places-bank', 'anne')
+        self.assertEqual(self.owner_additions(), [
+            (PLACES_DN, ((ldap.MOD_ADD, 'owner', [ANNE_DN]),))])
+        self.assertEqual(restored, {
+            'organisations': ['dk_org'], 'roles': ['places', 'places-bank'],
+            'roles_permittedPerson': ['places-bank'],
+            'roles_owner': ['places'], 'skipped_roles': ['gone']})
+        actions = [r['action'] for r in self.change_records(ANNE_DN)]
+        self.assertEqual(actions, ['ENABLE_ACCOUNT', 'ADDED_AS_ROLE_OWNER'])
+        self.assertEqual(self.change_records(ANNE_DN)[0]['data']['roles'],
+                         ['places', 'places-bank'])
+        self.assertIn((ldap.MOD_REPLACE, 'employeeType', 'enabled'),
+                      self.modifications(ANNE_DN)[1])
+
+    def test_enable_user_without_restore(self):
+        restored = self.enable({
+            'email': 'anne@example.com', 'organisations': ['dk_org'],
+            'roles': ['places'], 'roles_permittedPerson': ['places'],
+            'roles_owner': ['places'], 'membership_type': {}},
+            restore_roles=False)
+        self.assertFalse(self.add_org.called)
+        self.assertFalse(self.add_role.called)
+        self.assertFalse(self.add_pp.called)
+        self.assertEqual(self.owner_additions(), [])
+        self.assertEqual(restored['roles'], [])
+        record, = self.change_records(ANNE_DN)
+        self.assertEqual(record['data']['roles_owner'], [])
         self.assertIn((ldap.MOD_REPLACE, 'employeeType', 'enabled'),
                       self.modifications(ANNE_DN)[-1])
+
+    def test_enable_user_old_change_record(self):
+        # missing keys (very old records) and empty lists (generator bug)
+        for data in ({'email': 'anne@example.com', 'organisations': [],
+                      'roles': ['places']},
+                     {'email': 'anne@example.com', 'organisations': [],
+                      'roles': ['places'], 'roles_permittedPerson': [],
+                      'roles_owner': [], 'membership_type': {}}):
+            self.conn.modify_s.reset_mock()
+            restored = self.enable(data, restore_roles=True)
+            self.add_role.assert_called_once_with('places', 'user', 'anne',
+                                                  None)
+            self.assertFalse(self.add_pp.called)
+            self.assertEqual(self.owner_additions(), [])
+            self.assertEqual(restored['skipped_roles'], [])
+
+    def test_enable_user_role_add_fails(self):
+        with patch.object(UsersDB, 'add_to_role', side_effect=ValueError):
+            meta = [{'action': DISABLE_ACCOUNT, 'data': {
+                'email': 'a@x.eu', 'organisations': [], 'roles': ['places']}}]
+            self.conn.search_s.side_effect = ldap_entries({
+                ANNE_DN: {'registeredAddress': [json.dumps(meta).encode()]},
+                PLACES_DN: {}})
+            restored = self.db.enable_user('anne', restore_roles=True)
+        self.assertEqual(restored['roles'], [])
+        self.assertEqual(restored['skipped_roles'], ['places'])
 
     def test_enable_not_disabled_user(self):
         self.conn.search_s.side_effect = ldap_entries({

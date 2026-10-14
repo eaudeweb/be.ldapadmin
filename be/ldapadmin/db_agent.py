@@ -1090,12 +1090,13 @@ class UsersDB(object):
                 # log.warning("Could not remove role %s for user %s",
                 #             role, user_id)
                 continue
-        roles_p = self.roles_permittedPerson(user_id)
+        roles_p = [self._role_id(dn)
+                   for dn in self.roles_permittedPerson(user_id)]
         for role in roles_p:
-            self.remove_permittedPerson(self._role_id(role), user_id)
-        roles_owner = self.roles_owner(user_id)
+            self.remove_permittedPerson(role, user_id)
+        roles_owner = [self._role_id(dn) for dn in self.roles_owner(user_id)]
         for role in roles_owner:
-            self.remove_role_owner(self._role_id(role), user_id)
+            self.remove_role_owner(role, user_id)
 
         log.info("Reseting user %r", user_id)
 
@@ -1141,12 +1142,13 @@ class UsersDB(object):
                 # log.warning("Could not remove role %s for user %s",
                 #             role, user_id)
                 continue
-        roles_p = self.roles_permittedPerson(user_id)
+        roles_p = [self._role_id(dn)
+                   for dn in self.roles_permittedPerson(user_id)]
         for role in roles_p:
-            self.remove_permittedPerson(self._role_id(role), user_id)
-        roles_owner = self.roles_owner(user_id)
+            self.remove_permittedPerson(role, user_id)
+        roles_owner = [self._role_id(dn) for dn in self.roles_owner(user_id)]
         for role in roles_owner:
-            self.remove_role_owner(self._role_id(role), user_id)
+            self.remove_role_owner(role, user_id)
 
         log.info("Disabling user %r", user_id)
 
@@ -1274,6 +1276,8 @@ class UsersDB(object):
         It sets back the employeeType field to empty string.
         It resets the email address
         It adds the action info to the registeredAddress field
+        With restore_roles it re-adds what disable_user removed and returns
+        the restored items per kind, plus the skipped (deleted) roles.
         """
         assert self._bound, "call `perform_bind` before `disable_user`"
         user_dn = self._user_dn(user_id)
@@ -1293,7 +1297,27 @@ class UsersDB(object):
         assert rec is not None, ("The user can't be enabled, was not "
                                  "properly disabled")
 
-        self.add_change_record(user_dn, ENABLE_ACCOUNT, rec['data'])
+        data = rec['data']
+        restored = {'organisations': [], 'roles': [],
+                    'roles_permittedPerson': [], 'roles_owner': [],
+                    'skipped_roles': []}
+        if restore_roles:
+            restored['organisations'] = list(data.get('organisations') or [])
+            exists = {}
+            for key in ('roles', 'roles_permittedPerson', 'roles_owner'):
+                for role in data.get(key) or []:
+                    if role not in exists:
+                        exists[role] = self.role_exists(role)
+                    if exists[role]:
+                        restored[key].append(role)
+                    elif role not in restored['skipped_roles']:
+                        restored['skipped_roles'].append(role)
+
+        self.add_change_record(user_dn, ENABLE_ACCOUNT, {
+            'email': data.get('email'),
+            'membership_type': data.get('membership_type', {}),
+            **restored,
+        })
 
         result = self.conn.modify_s(
             user_dn,
@@ -1305,30 +1329,44 @@ class UsersDB(object):
         )
         assert result[:2] == (ldap.RES_MODIFY, [])
 
-        if restore_roles:
-            # add the user back to the organisations and roles that it had
-            data = rec['data']
-            membership_type = data.get('membership_type', {})
-            for org in data['organisations']:
-                self.add_to_org(org, [user_id])
+        # add the user back to the organisations and roles that it had
+        membership_type = data.get('membership_type') or {}
+        for org in restored['organisations']:
+            self.add_to_org(org, [user_id])
 
-            for role in data['roles']:
-                try:
-                    self.add_to_role(role, 'user', user_id, membership_type.get(role))
-                except ValueError:  # role was probably removed
-                    continue
+        for role in restored['roles']:
+            try:
+                self.add_to_role(role, 'user', user_id,
+                                 membership_type.get(role))
+            except ValueError:  # role removed meanwhile
+                self._skip_role(restored, 'roles', role)
 
-            for role in data['roles_permittedPerson']:
-                try:
-                    self.add_permittedPerson(role, user_id)
-                except ValueError:  # role was probably removed
-                    continue
+        for role in restored['roles_permittedPerson']:
+            try:
+                self.add_permittedPerson(role, user_id)
+            except ValueError:  # role removed meanwhile
+                self._skip_role(restored, 'roles_permittedPerson', role)
+            except ldap.TYPE_OR_VALUE_EXISTS:
+                pass
 
-            for role in data['roles_owner']:
-                try:
-                    self.add_role_owner(role, user_id)
-                except ValueError:  # role was probably removed
-                    continue
+        for role in restored['roles_owner']:
+            self._restore_role_owner(role, user_dn)
+
+        return restored
+
+    @staticmethod
+    def _skip_role(restored, key, role):
+        restored[key] = [r for r in restored[key] if r != role]
+        if role not in restored['skipped_roles']:
+            restored['skipped_roles'].append(role)
+
+    def _restore_role_owner(self, role_id, user_dn):
+        """ Add user_dn as owner of role_id only, not of its sub-roles """
+        try:
+            self._add_owner_dn_to_role_dn(self._role_dn(role_id), user_dn)
+        except ldap.TYPE_OR_VALUE_EXISTS:
+            return
+        self.add_change_record(user_dn, ADDED_AS_ROLE_OWNER, {'role': role_id})
 
     @log_ldap_exceptions
     def delete_user(self, user_id):

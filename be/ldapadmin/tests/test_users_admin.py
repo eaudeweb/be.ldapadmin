@@ -7,8 +7,10 @@ from unittest.mock import MagicMock as Mock, call, patch
 
 import xlwt
 from lxml.html.soupparser import fromstring
+from openpyxl import load_workbook
 
 from be.ldapadmin.db_agent import UsersDB, DISABLE_ACCOUNT
+from be.ldapadmin.tests.test_excel_reader import build_xlsx
 from be.ldapadmin.tests.test_import_export import read_xlsx
 from be.ldapadmin.tests.test_users_ui import StubbedUsersAdmin, user_fixture
 from be.ldapadmin.users_admin import (
@@ -57,6 +59,14 @@ def xls_file(header, rows):
     out = BytesIO()
     wb.save(out)
     return out.getvalue()
+
+
+def xlsx_file(header, rows):
+    return build_xlsx([[list(header)] + [list(r) for r in rows]])
+
+
+XLSX_TYPE = (
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 class AdminTestBase(unittest.TestCase):
@@ -173,6 +183,15 @@ class ConfirmationPagesTest(AdminTestBase):
     def test_enable_page(self):
         self.check_page('enable_user', 'Enable user')
 
+    def test_enable_page_offers_restore_choice(self):
+        page = fromstring(self.ui.enable_user(self.request({'id': 'anne'})))
+        radios = page.xpath('//input[@name="restore_roles"]')
+        self.assertEqual([(r.get('type'), r.get('value')) for r in radios],
+                         [('radio', 'on'), ('radio', '')])
+        self.assertEqual(radios[0].get('checked'), 'checked')
+        self.assertIn('Restore all', page.text_content())
+        self.assertIn('Restore nothing', page.text_content())
+
     def test_delete_action(self):
         request = self.request({'id': 'anne'})
         self.ui.delete_user_action(request)
@@ -191,6 +210,10 @@ class ConfirmationPagesTest(AdminTestBase):
         self.ui.unrestrictedTraverse = Mock(
             return_value=Mock(absolute_url=Mock(return_value='SITE')))
         request = self.request({'id': 'anne', 'restore_roles': 'on'})
+        self.agent.enable_user.return_value = {
+            'organisations': ['dk_org'], 'roles': ['places', 'places-bank'],
+            'roles_permittedPerson': ['places'], 'roles_owner': [],
+            'skipped_roles': ['gone']}
         self.ui.enable_user_action(request)
         self.agent.enable_user.assert_called_once_with(
             'anne', restore_roles='on')
@@ -198,7 +221,21 @@ class ConfirmationPagesTest(AdminTestBase):
         self.assertEqual(addr_to, ['anne@example.com'])
         self.assertIn('Your username is anne.', body)
         self.assertIn('SITE/password-reset', body)
-        self.assertIn('previous roles restored', messages(request, 'info')[0])
+        message = messages(request, 'info')[0]
+        self.assertIn('restored: organisations dk_org; roles places, '
+                      'places-bank; permittedPerson in roles places; '
+                      'owner of roles -; skipped deleted roles gone', message)
+
+    @patch('be.ldapadmin.users_admin.getUtility')
+    def test_enable_action_without_restore(self, getUtility):
+        self.ui.unrestrictedTraverse = Mock(
+            return_value=Mock(absolute_url=Mock(return_value='SITE')))
+        request = self.request({'id': 'anne', 'restore_roles': ''})
+        self.ui.enable_user_action(request)
+        self.agent.enable_user.assert_called_once_with(
+            'anne', restore_roles='')
+        self.assertIn('previous roles NOT restored',
+                      messages(request, 'info')[0])
 
 
 class FindDuplicatesTest(AdminTestBase):
@@ -342,6 +379,12 @@ class BulkImportTest(AdminTestBase):
         self.assertEqual(rows[0][1], BulkUserImporter.TEMPLATE_COLUMNS)
         headers = dict(c[0] for c in request.RESPONSE.setHeader.call_args_list)
         self.assertEqual(headers['Content-Length'], len(data))
+        self.assertEqual(headers['Content-Type'], XLSX_TYPE)
+        self.assertEqual(headers['Content-Disposition'],
+                         'attachment; filename=create_users_template.xlsx')
+        sheet = load_workbook(BytesIO(data)).worksheets[0]
+        header = [c.value for c in sheet[1]]
+        self.assertEqual(header, BulkUserImporter.TEMPLATE_COLUMNS)
 
     def template_rows(self, *users):
         rows = []
@@ -355,9 +398,9 @@ class BulkImportTest(AdminTestBase):
             rows.append(row)
         return rows
 
-    def test_read_xls(self):
+    def test_read_xlsx(self):
         view, request = self.importer()
-        data = xls_file(BulkUserImporter.TEMPLATE_COLUMNS, self.template_rows(
+        data = xlsx_file(BulkUserImporter.TEMPLATE_COLUMNS, self.template_rows(
             ('Anne', 'Tester', ' Anne@Example.com '),
             ('Anna', 'Tester', 'anna@example.com')))
         rows = view.read_xls(data)
@@ -365,20 +408,32 @@ class BulkImportTest(AdminTestBase):
         self.assertEqual(rows[0]['email'], 'anne@example.com')
         self.assertEqual(rows[0]['url'], 'http://example.com')
         self.assertEqual(rows[0]['organisation'], 'dk_org')
-        self.assertEqual(len(rows[0]['password']), 8)
 
-    def test_read_xls_wrong_columns(self):
+    def test_read_xlsx_wrong_columns(self):
         view, request = self.importer()
         with self.assertRaises(ValueError):
-            view.read_xls(xls_file(['First Name*'], [['Anne']]))
+            view.read_xls(xlsx_file(['First Name*'], [['Anne']]))
 
-    def test_read_xls_number_cell(self):
+    def test_read_xlsx_number_cell(self):
         view, request = self.importer()
         rows = self.template_rows(('Anne', 'Tester', 'anne@example.com'))
         rows[0][8] = 4533123456
         with self.assertRaises(ValueError) as cm:
-            view.read_xls(xls_file(BulkUserImporter.TEMPLATE_COLUMNS, rows))
+            view.read_xls(xlsx_file(BulkUserImporter.TEMPLATE_COLUMNS, rows))
         self.assertIn('format all cells as text', str(cm.exception))
+
+    def test_bulk_create_xlsx(self):
+        self.ui.send_confirmation_email = Mock()
+        self.ui.send_password_reset_email = Mock()
+        self.agent.org_exists.return_value = True
+        data = xlsx_file(BulkUserImporter.TEMPLATE_COLUMNS, self.template_rows(
+            ('Anne', 'Tester', 'anne@example.com')))
+        view, request = self.importer({'bulk_create': '1',
+                                       'data': BytesIO(data)})
+        with patch('be.ldapadmin.users_admin._send_email'):
+            text = fromstring(view()).text_content()
+        created = [c[0][0] for c in self.agent.create_user.call_args_list]
+        self.assertEqual(created, ['testeann'], text)
 
     @patch('be.ldapadmin.users_admin._send_email')
     def test_bulk_create(self, send):
@@ -386,7 +441,7 @@ class BulkImportTest(AdminTestBase):
         self.ui.send_password_reset_email = Mock()
         self.agent.org_exists.return_value = True
         self.agent.existing_emails.return_value = iter(['bob@example.com'])
-        data = xls_file(BulkUserImporter.TEMPLATE_COLUMNS, self.template_rows(
+        data = xlsx_file(BulkUserImporter.TEMPLATE_COLUMNS, self.template_rows(
             ('Anne', 'Tester', 'anne@example.com'),
             ('Bob', 'Builder', 'bob@example.com'),
             ('Carl', 'Bad', 'carl-at-example')))
@@ -405,6 +460,14 @@ class BulkImportTest(AdminTestBase):
                       'bob@example.com', text)
         self.ui.send_confirmation_email.assert_called_once()
         self.assertEqual(send.call_count, 1)
+
+    def test_bulk_create_xls_rejected(self):
+        data = xls_file(BulkUserImporter.TEMPLATE_COLUMNS, self.template_rows(
+            ('Anne', 'Tester', 'anne@example.com')))
+        view, request = self.importer({'bulk_create': '1',
+                                       'data': BytesIO(data)})
+        self.assertIn('Invalid Excel file', view())
+        self.assertFalse(self.agent.create_user.called)
 
     def test_bulk_create_invalid_file(self):
         view, request = self.importer({'bulk_create': '1',

@@ -27,9 +27,9 @@ from persistent.mapping import PersistentMapping
 import colander
 import deform
 from . import query
-import xlrd
 import xlsxwriter
 from be.ldapadmin import ldap_config
+from be.ldapadmin.import_export import read_excel_sheets
 from be.ldapadmin.import_export import generate_excel, merge_cells_by_column, sort_rows_by_group
 from be.ldapadmin.ui_common import CommonTemplateLogic
 from be.ldapadmin.ui_common import NaayaViewPageTemplateFile
@@ -515,8 +515,8 @@ class RolesEditor(Folder):
 
         content = xls.read()
         try:
-            wb = xlrd.open_workbook(file_contents=content)
-        except xlrd.XLRDError:
+            sheets = read_excel_sheets(content)
+        except ValueError:
             return self._render_template('zpt/roles_import_xls.zpt',
                                          **{'error': 'Not a valid file'})
         problems = {
@@ -530,81 +530,18 @@ class RolesEditor(Folder):
         # structure in xls is role_id -> description
         roles = {}
         try:
-            sheet = wb.sheet_by_index(0)
+            sheet = sheets[0]
         except IndexError:
             pass
         else:
-            for i in range(1, sheet.nrows):
-                row = sheet.row(i)
-                id, title = row[0].value, row[1].value
+            for row in sheet[1:]:
+                id, title = row[0], row[1]
                 if not (id and title):  # skip empty rows
                     continue
                 roles[id] = title
         problems['creation'] = self._create_roles(roles)
-        return
-
-        # Change role descriptions
-        # structure in xls is role_id -> new description
-        roles = {}
-        try:
-            sheet = wb.sheet_by_index(1)
-        except IndexError:
-            pass
-        else:
-            for i in range(1, sheet.nrows):
-                row = sheet.row(i)
-                id, title = row[0].value, row[1].value
-                if not (id and title):  # skip empty rows
-                    continue
-                roles[id] = title
-            problems['renaming'] = self._rename_roles(roles)
-
-        # Merge roles
-        # structure is role_to_delete -> role_to_merge_to
-        # everything in the left part will be moved to the right part
-        roles = {}
-        try:
-            sheet = wb.sheet_by_index(2)
-        except IndexError:
-            pass
-        else:
-            for i in range(1, sheet.nrows):
-                row = sheet.row(i)
-                role_to_merge, role_destination = row[0].value, row[1].value
-                if not (role_to_merge and role_destination):  # skip empty rows
-                    continue
-                roles[role_to_merge] = role_destination
-            problems['merging'] = self._merge_roles(roles)
-
-        # structure is role_to_fill -> role_template
-        # everything under the role_template will serve as a template to create
-        # new children in role_to_fill
-        roles = {}
-        try:
-            sheet = wb.sheet_by_index(3)
-        except IndexError:
-            pass
-        else:
-            for i in range(1, sheet.nrows):
-                row = sheet.row(i)
-                role_destination, role_source = row[0].value, row[1].value
-                if not (role_source and role_destination):  # skip empty rows
-                    continue
-                roles[role_destination] = role_source
-            problems['prefill'] = self._prefill_roles(roles)
-
         return self._render_template('zpt/roles_import_xls.zpt',
                                      **{'problems': problems})
-
-    def _merge_roles(self, roles):
-        agent = self._get_ldap_agent(bind=True)
-        for role_source, role_destination in roles.items():
-            agent.merge_roles(role_source, role_destination)
-
-    def _prefill_roles(self, roles):
-        agent = self._get_ldap_agent(bind=True)
-        for role_destination, role_source in roles.items():
-            agent.prefill_roles_from(role_destination, role_source)
 
     def _create_roles(self, roles):
         agent = self._get_ldap_agent(bind=True)
@@ -625,20 +562,6 @@ class RolesEditor(Folder):
             else:
                 if parent_role_id:
                     agent.add_role_owner(role_id, 'nerifern')
-
-        return problems
-
-    def _rename_roles(self, roles):
-        """ This is actually just changing their description
-        """
-        agent = self._get_ldap_agent(bind=True)
-
-        problems = []
-        for role_id, description in roles.items():
-            try:
-                agent.set_role_description(role_id, description.strip())
-            except Exception:
-                problems.append(role_id)
 
         return problems
 

@@ -18,6 +18,15 @@
 * Save the remove_permittedPerson change record on the user DN instead of
   the user id [dumitval]
 * Remove the unused UsersAdmin.change_password views [dumitval]
+* Read .xlsx files in the bulk user and roles imports (openpyxl instead of
+  xlrd) [dumitval]
+* Export the organisation lists as .xlsx (xlsxwriter instead of xlwt)
+  [dumitval]
+* Serve the bulk user template as create_users_template.xlsx with the .xlsx
+  content type [dumitval]
+* Show the result page after the roles import instead of an empty response,
+  and remove the role rename, merge and prefill steps disabled since 2014
+  [dumitval]
 
 1.0 (2026-10-12)
 ----------------
@@ -56,6 +65,15 @@
 * Fix the user create and edit forms on Python 3 [dumitval]
 * Fix the role users CSV export on Python 3 [dumitval]
 * Use the standard library json instead of simplejson [dumitval]
+* Store role ids instead of consumed generators for roles_permittedPerson and
+  roles_owner in the DISABLE_ACCOUNT and RESET_ACCOUNT change records
+  [dumitval]
+* Restore role memberships, permittedPerson and role ownership when a user is
+  re-enabled with restore, skip and report roles deleted meanwhile [dumitval]
+* Replace the restore_roles checkbox on the enable user page with "Restore
+  all" / "Restore nothing" radio buttons [dumitval]
+* Store only the restored items in the ENABLE_ACCOUNT change record
+  [dumitval]
 
 0.1 (2021-04-03)
 ------------------------

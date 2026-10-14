@@ -3,7 +3,8 @@
 import re
 import unittest
 import logging
-from io import StringIO
+from io import BytesIO, StringIO
+from openpyxl import load_workbook
 from lxml.html.soupparser import fromstring
 from unittest.mock import MagicMock as Mock, patch
 from be import ldapadmin
@@ -527,3 +528,86 @@ class OrganisationsValidationTest(unittest.TestCase):
                                     create_mode=True)
             self.assertTrue('id' not in err,
                             "False positive org_id %r" % (ok_id,))
+
+
+XLSX_TYPE = (
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+def sheet_rows(data, name):
+    wb = load_workbook(BytesIO(data))
+    return [list(r) for r in wb[name].iter_rows(values_only=True)]
+
+
+class OrganisationsExportTest(unittest.TestCase):
+    def setUp(self):
+        countries = patch.dict(
+            'be.ldapadmin.countries.COUNTRIES',
+            {'dk': {'code': 'dk', 'name': 'Denmark', 'pub_code': 'DK'}})
+        countries.start()
+        self.addCleanup(countries.stop)
+        self.ui = StubbedOrganisationsEditor('organisations')
+        self.agent = Mock()
+        self.ui._get_ldap_agent = Mock(return_value=self.agent)
+        self.request = mock_request()
+        self.request.AUTHENTICATED_USER.getRoles.return_value = [
+            'Authenticated']
+        self.org = dict(org_info_fixture, id='dk_bridge_club',
+                        email='club@example.com')
+        users = {
+            'anne': {'uid': 'anne', 'first_name': 'Anne',
+                     'full_name': 'Anne Tester', 'email': 'anne@example.com'},
+            'jsmith': {'uid': 'jsmith', 'first_name': 'Joe',
+                       'full_name': 'Joe Smith', 'email': 'joe@example.com'},
+        }
+        self.agent.all_organisations.return_value = {
+            'dk_bridge_club': self.org}
+        self.agent.org_info.return_value = self.org
+        self.agent.members_in_org.return_value = ['jsmith', 'anne']
+        self.agent.user_info.side_effect = users.get
+
+    def headers(self):
+        calls = self.request.RESPONSE.setHeader.call_args_list
+        return dict(c[0] for c in calls)
+
+    def test_export_organisations(self):
+        data = self.ui.export_organisations(self.request)
+        headers = self.headers()
+        self.assertEqual(headers['Content-Type'], XLSX_TYPE)
+        self.assertEqual(headers['Content-Disposition'],
+                         'attachment; filename=organisations.xlsx')
+        self.assertEqual(headers['Content-Length'], len(data))
+        wb = load_workbook(BytesIO(data))
+        self.assertEqual(wb.sheetnames, ['Organisations', 'Members'])
+        orgs = sheet_rows(data, 'Organisations')
+        self.assertEqual(orgs[0], ['Id', 'Name', 'Locality', 'Postal_address',
+                                   'Fax', 'Email', 'Members count'])
+        self.assertEqual(orgs[2], ['dk_bridge_club', 'Ye olde bridge club',
+                                   'K\xf8benhavn', 'Card games road',
+                                   '+45 555 9999', 'club@example.com', 2])
+        self.assertTrue(wb['Organisations']['A1'].font.bold)
+        members = sheet_rows(data, 'Members')
+        self.assertEqual(members[0][0], 'Ye olde bridge club')
+        self.assertEqual(members[2], ['user id', 'fullname', 'email'])
+        self.assertEqual(members[3], ['anne', 'Anne Tester',
+                                      'anne@example.com'])
+
+    def test_export_org(self):
+        self.request.form = {'id': 'dk_bridge_club'}
+        data = self.ui.export_org(self.request)
+        headers = self.headers()
+        self.assertEqual(headers['Content-Type'], XLSX_TYPE)
+        self.assertEqual(headers['Content-Disposition'],
+                         'attachment; filename=dk_bridge_club.xlsx')
+        wb = load_workbook(BytesIO(data))
+        self.assertEqual(wb.sheetnames, ['Organisation Details', 'Users'])
+        details = sheet_rows(data, 'Organisation Details')
+        self.assertEqual(details[0], ['id', 'name', 'locality',
+                                      'postal_address', 'fax', 'email'])
+        self.assertEqual(details[2][:2], ['dk_bridge_club',
+                                          'Ye olde bridge club'])
+        users = sheet_rows(data, 'Users')
+        self.assertEqual(users[0], ['user id', 'fullname', 'email'])
+        self.assertEqual(users[2], ['anne', 'Anne Tester',
+                                    'anne@example.com'])
+        self.assertTrue(wb['Users']['A1'].font.bold)

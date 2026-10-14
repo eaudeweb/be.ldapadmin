@@ -2,6 +2,7 @@ import xlsxwriter
 import logging
 import urllib.parse
 from io import BytesIO
+from openpyxl import load_workbook
 from naaya.core.utils import force_to_unicode
 
 logger = logging.getLogger(__name__)
@@ -248,3 +249,45 @@ def generate_excel(header, rows, fiddle_workbook=None):
 
     wb.close()
     return output.getvalue()
+
+
+XLSX_CONTENT_TYPE = (
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+def _normalize_cell(value):
+    if value is None:
+        return ''
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
+
+
+def _pad_rows(rows):
+    width = max((len(row) for row in rows), default=0)
+    return [row + [''] * (width - len(row)) for row in rows]
+
+
+def read_excel_sheets(data):
+    """ Rows (lists of cell values) of every sheet of an .xlsx file """
+    if data[:2] != b'PK':
+        raise ValueError('Not a valid .xlsx file')
+    try:
+        wb = load_workbook(BytesIO(data), read_only=True, data_only=True)
+        try:
+            sheets = [[[_normalize_cell(c) for c in row]
+                       for row in ws.iter_rows(values_only=True)]
+                      for ws in wb.worksheets]
+        finally:
+            wb.close()
+    except Exception as e:
+        raise ValueError('Not a valid .xlsx file: %s' % e)
+    return [_pad_rows(rows) for rows in sheets]
+
+
+def read_excel_rows(data):
+    """ Rows of the first sheet of an .xlsx file, [] if there is no sheet """
+    sheets = read_excel_sheets(data)
+    return sheets[0] if sheets else []
