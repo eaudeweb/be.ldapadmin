@@ -1,5 +1,8 @@
-0.2 (unreleased)
-------------------------
+0.3 (unreleased)
+----------------
+
+0.2 (2026-10-15)
+----------------
 * Find organisations by the organizationGroup object class used in the LDAP
   [dumitval]
 * Fix generate_user_id using min(str, int) for the first name length
