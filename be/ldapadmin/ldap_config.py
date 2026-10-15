@@ -32,7 +32,7 @@ def ldap_agent_with_config(config, bind=False, secondary=False):
                  # next is for bwd compat with objects created with v1.0.0
                  users_rdn=config.get('users_rdn', defaults['users_rdn']),
                  users_dn=config['users_dn'],
-                 orgs_dn=config['orgs_dn'],
+                 orgs_dn=config.get('orgs_dn', defaults['orgs_dn']),
                  roles_dn=config['roles_dn'])
 
     if bind:

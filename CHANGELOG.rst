@@ -1,5 +1,8 @@
 1.1 (unreleased)
 ----------------
+* Default orgs_dn for configs saved without it [dumitval]
+* Do not make the hard-coded, non-existent user nerifern owner of the
+  roles created by the roles import [dumitval]
 * Fix generate_user_id failing on min(str, int) and string.lowercase
   [dumitval]
 * Read countries.json as UTF-8 [dumitval]

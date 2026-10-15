@@ -559,9 +559,6 @@ class RolesEditor(Folder):
                                           description=description)
             except RoleCreationError:
                 problems.append(role_id)
-            else:
-                if parent_role_id:
-                    agent.add_role_owner(role_id, 'nerifern')
 
         return problems
 
