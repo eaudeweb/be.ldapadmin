@@ -80,7 +80,7 @@ def generate_user_id(first_name, last_name, agent, id_list):
         '-', '').replace("'", "").replace(" ", "")
     last_name = unidecode(last_name).replace(
         '-', '').replace("'", "").replace(" ", "")
-    min_first_length = min(first_name, 3)
+    min_first_length = min(len(first_name), 3)
     uid1 = last_name[:8 - min_first_length]
     uid2 = first_name[:8 - len(uid1)]
     base_uid = (uid1 + uid2).lower()
@@ -409,6 +409,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 if org and not (org in agent_orgs):
                     orgs.append({'id': org, 'text': org, 'text_native': '',
                                  'ldap': False})
+            form_data['organisation'] = form_orgs
         else:
             form_data['organisation'] = []
         choices = [('-', '-')]
@@ -499,7 +500,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         lname = REQUEST.form.get('last_name', '')
         email = REQUEST.form.get('email', '')
 
-        # duplicate_records = []
+        duplicates_records = []
 
         if fname and lname and email:
             duplicates_records = self._find_duplicates(fname, lname, email)
@@ -885,9 +886,9 @@ class UsersAdmin(SimpleItem, PropertyManager):
             if members:
                 for user_id in members:
                     try:
-                        user_info = agent.user_info(user_id)
-                        if user_info not in bulk_emails:
-                            bulk_emails.append(str(user_info['email']))
+                        email = str(agent.user_info(user_id)['email'])
+                        if email not in bulk_emails:
+                            bulk_emails.append(email)
                     except (NO_SUCH_OBJECT, UserNotFound):
                         pass
 

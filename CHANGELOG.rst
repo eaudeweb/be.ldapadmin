@@ -1,5 +1,29 @@
 0.2 (unreleased)
 ------------------------
+* Find organisations by the organizationGroup object class used in the LDAP
+  [dumitval]
+* Fix generate_user_id using min(str, int) for the first name length
+  [dumitval]
+* Fix create_user adding the user to one organisation per character when a
+  single organisation is selected [dumitval]
+* Fix find_duplicates failing when first name, last name or email is
+  missing [dumitval]
+* Fix the table-user-info macro failing on the undefined role_id when the
+  membership type column is hidden (find_duplicates) [dumitval]
+* Remove duplicate addresses from the bulk_get_emails result [dumitval]
+* Read the "Telephone Number" column of the bulk user import template
+  [dumitval]
+* Save the remove_permittedPerson change record on the user DN instead of
+  the user id [dumitval]
+* Store the permittedPerson and owner roles removed by disable_user and
+  reset_user_roles, so enable_user can restore them; restore the ownership
+  of each role only, not of its sub-roles [dumitval]
+* Show the result page after the roles import instead of an empty response,
+  and remove the role rename, merge and prefill steps disabled since 2014
+  [dumitval]
+* Do not make the hard-coded, non-existent user nerifern owner of the
+  roles created by the roles import [dumitval]
+* Default orgs_dn for configs saved without it [dumitval]
 * Reinstate role_id as grouping, sorting criterion on Excel export [valipod]
 * Highlight deactivated roles: set role status to "Terminated" on
   deactivation, sort roles listing by active/inactive, visually mark
