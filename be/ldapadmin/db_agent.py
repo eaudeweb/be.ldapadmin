@@ -685,7 +685,7 @@ class UsersDB(object):
         """
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organisation)(pendingUniqueMember=%s))',
+            '(&(objectClass=organizationGroup)(pendingUniqueMember=%s))',
             (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
@@ -1002,7 +1002,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def user_organisations(self, user_id):
         """ return organisations the user belongs to """
-        filter_tmpl = '(&(objectClass=organisation)(uniqueMember=%s))'
+        filter_tmpl = '(&(objectClass=organizationGroup)(uniqueMember=%s))'
         user_dn = self._user_dn(user_id)
         filterstr = ldap.filter.filter_format(filter_tmpl, (user_dn,))
         result = self.conn.search_s(self._org_dn(None), ldap.SCOPE_SUBTREE,
@@ -1052,12 +1052,13 @@ class UsersDB(object):
                 # log.warning("Could not remove role %s for user %s",
                 #             role, user_id)
                 continue
-        roles_p = self.roles_permittedPerson(user_id)
+        roles_p = [self._role_id(dn)
+                   for dn in self.roles_permittedPerson(user_id)]
         for role in roles_p:
-            self.remove_permittedPerson(self._role_id(role), user_id)
-        roles_owner = self.roles_owner(user_id)
+            self.remove_permittedPerson(role, user_id)
+        roles_owner = [self._role_id(dn) for dn in self.roles_owner(user_id)]
         for role in roles_owner:
-            self.remove_role_owner(self._role_id(role), user_id)
+            self.remove_role_owner(role, user_id)
 
         log.info("Reseting user %r", user_id)
 
@@ -1103,12 +1104,13 @@ class UsersDB(object):
                 # log.warning("Could not remove role %s for user %s",
                 #             role, user_id)
                 continue
-        roles_p = self.roles_permittedPerson(user_id)
+        roles_p = [self._role_id(dn)
+                   for dn in self.roles_permittedPerson(user_id)]
         for role in roles_p:
-            self.remove_permittedPerson(self._role_id(role), user_id)
-        roles_owner = self.roles_owner(user_id)
+            self.remove_permittedPerson(role, user_id)
+        roles_owner = [self._role_id(dn) for dn in self.roles_owner(user_id)]
         for role in roles_owner:
-            self.remove_role_owner(self._role_id(role), user_id)
+            self.remove_role_owner(role, user_id)
 
         log.info("Disabling user %r", user_id)
 
@@ -1287,12 +1289,20 @@ class UsersDB(object):
                     self.add_permittedPerson(role, user_id)
                 except ValueError:  # role was probably removed
                     continue
+                except ldap.TYPE_OR_VALUE_EXISTS:
+                    pass
 
             for role in data['roles_owner']:
-                try:
-                    self.add_role_owner(role, user_id)
-                except ValueError:  # role was probably removed
-                    continue
+                self._restore_role_owner(role, user_dn)
+
+    def _restore_role_owner(self, role_id, user_dn):
+        """ Add user_dn as owner of role_id only, not of its sub-roles """
+        try:
+            self._add_owner_dn_to_role_dn(self._role_dn(role_id), user_dn)
+        except (ldap.TYPE_OR_VALUE_EXISTS, ldap.NO_SUCH_OBJECT):
+            # already owner, or the role was removed meanwhile
+            return
+        self.add_change_record(user_dn, ADDED_AS_ROLE_OWNER, {'role': role_id})
 
     @log_ldap_exceptions
     def delete_user(self, user_id):
@@ -1941,7 +1951,7 @@ class UsersDB(object):
     @log_ldap_exceptions
     def search_org(self, name):
         query = name.lower().encode(self._encoding)
-        pattern = '(&(objectClass=organisation)(|(cn=*%s*)(o=*%s*)))'
+        pattern = '(&(objectClass=organizationGroup)(|(cn=*%s*)(o=*%s*)))'
         query_filter = ldap.filter.filter_format(pattern, (query, query))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
@@ -2207,7 +2217,7 @@ class UsersDB(object):
             (ldap.MOD_DELETE, 'permittedPerson', [user_dn]),
         ))
 
-        self.add_change_record(user_id, REMOVED_AS_PERMITTED_PERSON,
+        self.add_change_record(user_dn, REMOVED_AS_PERMITTED_PERSON,
                                {'role': role_id})
 
     @log_ldap_exceptions
@@ -2495,7 +2505,7 @@ class UsersDB(object):
     def _search_user_in_orgs(self, user_id):
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organisation)(uniqueMember=%s))', (user_dn,))
+            '(&(objectClass=organizationGroup)(uniqueMember=%s))', (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query_filter, attrlist=())
@@ -2504,7 +2514,7 @@ class UsersDB(object):
     def orgs_for_user(self, user_id):
         user_dn = self._user_dn(user_id)
         query_filter = ldap.filter.filter_format(
-            '(&(objectClass=organisation)(uniqueMember=%s))', (user_dn,))
+            '(&(objectClass=organizationGroup)(uniqueMember=%s))', (user_dn,))
 
         result = self.conn.search_s(self._org_dn_suffix, ldap.SCOPE_ONELEVEL,
                                     filterstr=query_filter, attrlist=('o',))

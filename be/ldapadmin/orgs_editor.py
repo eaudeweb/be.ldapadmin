@@ -206,6 +206,10 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         style_header.font = headerfont
         style_normal.font = normalfont
         style_org_header.font = biggerheaderfont
+        # one role per line in the roles cell; keep the other cells of the
+        # row aligned with its first line
+        style_top = xlwt.easyxf('align: vert top')
+        style_roles = xlwt.easyxf('align: wrap on, vert top')
 
         cols = [
             'id',
@@ -259,19 +263,27 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
                 'user id',
                 'fullname',
                 'email',
+                'roles',
             ]
 
             for i, col in enumerate(cols):
                 users_sheet.write(row_counter, i, col, style_header)
 
             for i, member in enumerate(org_members, 1):
-                users_sheet.write(row_counter + i, 0, member['uid'])
-                users_sheet.write(row_counter + i, 1, member['full_name'])
-                users_sheet.write(row_counter + i, 2, member['email'])
+                users_sheet.write(row_counter + i, 0, member['uid'],
+                                  style_top)
+                users_sheet.write(row_counter + i, 1, member['full_name'],
+                                  style_top)
+                users_sheet.write(row_counter + i, 2, member['email'],
+                                  style_top)
+                roles = agent.list_member_roles('user', member['uid'])
+                users_sheet.write(row_counter + i, 3,
+                                  '\n'.join(_leaf_roles(roles)), style_roles)
 
             users_sheet.col(0).set_width(4000)
             users_sheet.col(1).set_width(6000)
             users_sheet.col(2).set_width(9000)
+            users_sheet.col(3).set_width(9000)
 
             row_counter += i + 2
 
@@ -345,18 +357,27 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
             'user id',
             'fullname',
             'email',
+            'roles',
         ]
         for i, col in enumerate(cols):
             users_sheet.write(0, i, col, style_header)
 
+        # one role per line in the roles cell; keep the other cells of the
+        # row aligned with its first line
+        style_top = xlwt.easyxf('align: vert top')
+        style_roles = xlwt.easyxf('align: wrap on, vert top')
         for i, member in enumerate(org_members, 2):
-            users_sheet.write(i, 0, member['uid'])
-            users_sheet.write(i, 1, member['full_name'])
-            users_sheet.write(i, 2, member['email'])
+            users_sheet.write(i, 0, member['uid'], style_top)
+            users_sheet.write(i, 1, member['full_name'], style_top)
+            users_sheet.write(i, 2, member['email'], style_top)
+            roles = agent.list_member_roles('user', member['uid'])
+            users_sheet.write(i, 3, '\n'.join(_leaf_roles(roles)),
+                              style_roles)
 
         users_sheet.col(0).set_width(4000)
         users_sheet.col(1).set_width(6000)
         users_sheet.col(2).set_width(9000)
+        users_sheet.col(3).set_width(9000)
 
         out = StringIO()
         wb.save(out)
@@ -850,6 +871,14 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
 
 
 InitializeClass(OrganisationsEditor)
+
+
+def _leaf_roles(role_ids):
+    """ Keep only the most specific roles: a member of a sub-role is also
+    a member of all its parent roles, which would only add noise """
+    return sorted(role_id for role_id in role_ids
+                  if not any(other.startswith(role_id + '-')
+                             for other in role_ids))
 
 
 id_re = re.compile(r'^[a-z]{2}_[a-z_]+$')
