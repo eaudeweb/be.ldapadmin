@@ -1,4 +1,7 @@
-1.1 (unreleased)
+1.2 (unreleased)
+----------------
+
+1.1 (2026-10-16)
 ----------------
 * Default orgs_dn for configs saved without it [dumitval]
 * Do not make the hard-coded, non-existent user nerifern owner of the
