@@ -1,5 +1,8 @@
 1.2 (unreleased)
 ----------------
+* Use jellyfish.jaro_winkler_similarity and require jellyfish >= 1.0
+  [dumitval]
+* Remove the unused sparql-client requirement [dumitval]
 
 1.1 (2026-10-16)
 ----------------

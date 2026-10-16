@@ -128,7 +128,7 @@ def get_duplicates_by_name(name):
 
     records = []
     for user in ldap_users:
-        distance = jellyfish.jaro_winkler(name, user['cn'])
+        distance = jellyfish.jaro_winkler_similarity(name, user['cn'])
         if distance >= UsersAdmin.similarity_level:
             records.append(user['dn'])
 
