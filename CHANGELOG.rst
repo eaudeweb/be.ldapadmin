@@ -1,4 +1,7 @@
-1.2 (unreleased)
+1.3 (unreleased)
+----------------
+
+1.2 (2026-10-16)
 ----------------
 * Use jellyfish.jaro_winkler_similarity and require jellyfish >= 1.0
   [dumitval]
