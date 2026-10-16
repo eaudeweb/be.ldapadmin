@@ -43,3 +43,19 @@ class ImportRolesTest(unittest.TestCase):
         request.form = {'file': BytesIO(b'not excel')}
         ui.REQUEST = request
         self.assertIn('Not a valid file', ui.import_xls(request))
+
+
+class CreateRolesTest(unittest.TestCase):
+
+    def test_no_owner_added(self):
+        ui = StubbedRolesEditor()
+        agent = Mock()
+        ui._get_ldap_agent = Mock(return_value=agent)
+        ui._make_role = Mock(side_effect=lambda agent, slug, parent_role_id,
+                             description: parent_role_id + '-' + slug)
+        problems = ui._create_roles({'dk-new': 'New', 'dk-new-sub': 'Sub'})
+        self.assertEqual(problems, [])
+        self.assertEqual(
+            [c[1]['parent_role_id'] for c in ui._make_role.call_args_list],
+            ['dk', 'dk-new'])
+        self.assertFalse(agent.add_role_owner.called)
