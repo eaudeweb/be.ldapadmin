@@ -1,4 +1,7 @@
-1.3 (unreleased)
+1.4 (unreleased)
+----------------
+
+1.3 (2026-10-17)
 ----------------
 * Read the countries from countries.json in the package (the 27 EU
   countries, the European Union and the United Kingdom) instead of
