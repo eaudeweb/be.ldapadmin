@@ -1,5 +1,7 @@
 1.4 (unreleased)
 ----------------
+* Fix the member search failing with IndexError in agent_from_uf when the
+  LDAP server does not answer: raise LDAPUnavailable instead [dumitval]
 
 1.3 (2026-10-17)
 ----------------
