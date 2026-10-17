@@ -5,7 +5,6 @@ import os.path
 import json
 import logging
 
-from .constants import LDAP_DISK_STORAGE
 
 logger = logging.getLogger(__name__)
 
@@ -23,22 +22,14 @@ DUMMY = {'code': '',
 
 
 def load_countries():
-    """ Load countries from json file in memory """
+    """ Load the EU countries from countries.json in this package """
     global COUNTRIES
-    try:
-        f = open(os.path.join(LDAP_DISK_STORAGE, "countries.json"), "r",
-                 encoding="utf-8")
-        f.close()
-    except (IOError, ValueError):
-        raise
-    else:
-        f = open(os.path.join(LDAP_DISK_STORAGE, "countries.json"), "r",
-                 encoding="utf-8")
+    with open(os.path.join(os.path.dirname(__file__), "countries.json"),
+              encoding="utf-8") as f:
         data = json.load(f)
-        f.close()
-        COUNTRIES = {}
-        COUNTRIES.update([(x['code'], x) for x in data])
-        return data
+    COUNTRIES = {}
+    COUNTRIES.update([(x['code'], x) for x in data])
+    return data
 
 
 def get_country(code):

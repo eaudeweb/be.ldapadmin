@@ -1,5 +1,9 @@
 1.3 (unreleased)
 ----------------
+* Read the countries from countries.json in the package (the 27 EU
+  countries, the European Union and the United Kingdom) instead of
+  LDAP_DISK_STORAGE; a missing file stopped the product from loading
+  [dumitval]
 
 1.2 (2026-10-16)
 ----------------

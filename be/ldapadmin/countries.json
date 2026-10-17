@@ -1,0 +1,147 @@
+[
+ {
+  "code": "at",
+  "name": "Austria",
+  "pub_code": "AT"
+ },
+ {
+  "code": "be",
+  "name": "Belgium",
+  "pub_code": "BE"
+ },
+ {
+  "code": "bg",
+  "name": "Bulgaria",
+  "pub_code": "BG"
+ },
+ {
+  "code": "cy",
+  "name": "Cyprus",
+  "pub_code": "CY"
+ },
+ {
+  "code": "cz",
+  "name": "Czechia",
+  "pub_code": "CZ"
+ },
+ {
+  "code": "de",
+  "name": "Germany",
+  "pub_code": "DE"
+ },
+ {
+  "code": "dk",
+  "name": "Denmark",
+  "pub_code": "DK"
+ },
+ {
+  "code": "ee",
+  "name": "Estonia",
+  "pub_code": "EE"
+ },
+ {
+  "code": "es",
+  "name": "Spain",
+  "pub_code": "ES"
+ },
+ {
+  "code": "eu",
+  "name": "European Union",
+  "pub_code": "EU"
+ },
+ {
+  "code": "fi",
+  "name": "Finland",
+  "pub_code": "FI"
+ },
+ {
+  "code": "fr",
+  "name": "France",
+  "pub_code": "FR"
+ },
+ {
+  "code": "gb",
+  "name": "United Kingdom",
+  "pub_code": "UK"
+ },
+ {
+  "code": "gr",
+  "name": "Greece",
+  "pub_code": "EL"
+ },
+ {
+  "code": "hr",
+  "name": "Croatia",
+  "pub_code": "HR"
+ },
+ {
+  "code": "hu",
+  "name": "Hungary",
+  "pub_code": "HU"
+ },
+ {
+  "code": "ie",
+  "name": "Ireland",
+  "pub_code": "IE"
+ },
+ {
+  "code": "it",
+  "name": "Italy",
+  "pub_code": "IT"
+ },
+ {
+  "code": "lt",
+  "name": "Lithuania",
+  "pub_code": "LT"
+ },
+ {
+  "code": "lu",
+  "name": "Luxembourg",
+  "pub_code": "LU"
+ },
+ {
+  "code": "lv",
+  "name": "Latvia",
+  "pub_code": "LV"
+ },
+ {
+  "code": "mt",
+  "name": "Malta",
+  "pub_code": "MT"
+ },
+ {
+  "code": "nl",
+  "name": "Netherlands",
+  "pub_code": "NL"
+ },
+ {
+  "code": "pl",
+  "name": "Poland",
+  "pub_code": "PL"
+ },
+ {
+  "code": "pt",
+  "name": "Portugal",
+  "pub_code": "PT"
+ },
+ {
+  "code": "ro",
+  "name": "Romania",
+  "pub_code": "RO"
+ },
+ {
+  "code": "se",
+  "name": "Sweden",
+  "pub_code": "SE"
+ },
+ {
+  "code": "si",
+  "name": "Slovenia",
+  "pub_code": "SI"
+ },
+ {
+  "code": "sk",
+  "name": "Slovakia",
+  "pub_code": "SK"
+ }
+]
