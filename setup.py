@@ -2,7 +2,7 @@
 from setuptools import setup, find_packages
 
 setup(name='be.ldapadmin',
-      version='0.3.dev0',
+      version='0.4.dev0',
       author='Eau de Web',
       author_email='office@eaudeweb.ro',
       packages=find_packages(),
