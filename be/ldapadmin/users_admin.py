@@ -236,7 +236,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
     security.declarePublic('checkPermissionEditUsers')
 
     def checkPermissionEditUsers(self):
-        """ """
+        """ Check permission edit users """
         user = self.REQUEST.AUTHENTICATED_USER
         return bool(user.has_permission(ldap_edit_users, self))
 
@@ -925,14 +925,14 @@ class UsersAdmin(SimpleItem, PropertyManager):
         _send_email(addr_from, addr_to, message)
 
     def send_password_reset_email(self, user_info):
-        """ """
+        """ Send password reset email """
         pwreset_tool = self.restrictedTraverse('/').objectValues(
             'LDAP Password Reset Tool')[0]
         email = user_info['email']
         pwreset_tool.ask_for_password_reset(email=email, on_create=True)
 
     def orgs_in_country(self, country):
-        """ """
+        """ Orgs in country """
         agent = self._get_ldap_agent()
         try:
             orgs_by_id = agent.all_organisations()
@@ -948,7 +948,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
         return orgs
 
     def get_ldap_user_groups(self, user_id):
-        """ """
+        """ Get ldap user groups """
         agent = self._get_ldap_agent(bind=True, secondary=True)
         ldap_roles = sorted(agent.member_roles_info('user',
                                                     user_id,

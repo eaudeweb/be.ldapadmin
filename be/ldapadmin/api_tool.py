@@ -46,7 +46,7 @@ class ApiTool(SimpleItem):
     security.declareProtected(view_management_screens, 'dump_ldap')
 
     def dump_ldap(self, REQUEST=None, RESPONSE=None):
-        """ """
+        """ Dump ldap """
         dump_ldap(LDAP_DISK_STORAGE)
         return 'FINISHED dump_ldap @ {}/ to {}'.format(
             self.absolute_url(),

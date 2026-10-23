@@ -163,7 +163,7 @@ class UserDetails(SimpleItem):
     security.declarePublic("index_html")
 
     def index_html(self, REQUEST):
-        """ """
+        """ Index html """
         is_auth = _is_authenticated(REQUEST)
         uid = REQUEST.form.get('uid')
         if not uid and is_auth:
@@ -269,7 +269,7 @@ class UserDetails(SimpleItem):
     security.declarePublic("simple_profile")
 
     def simple_profile(self, REQUEST):
-        """ """
+        """ Simple profile """
         uid = REQUEST.form.get('uid')
         user, roles, orgs = self._prepare_user_page(uid)
         tr = TemplateRenderer(CommonTemplateLogic)
@@ -279,7 +279,7 @@ class UserDetails(SimpleItem):
     security.declarePublic("userphoto_jpeg")
 
     def userphoto_jpeg(self, REQUEST):
-        """ """
+        """ Userphoto jpeg """
         uid = REQUEST.form.get('uid')
         agent = self._get_ldap_agent()
         REQUEST.RESPONSE.setHeader('Content-Type', 'image/jpeg')
@@ -288,7 +288,7 @@ class UserDetails(SimpleItem):
     security.declarePublic("usercertificate")
 
     def usercertificate(self, REQUEST):
-        """ """
+        """ Usercertificate """
         uid = REQUEST.form.get('uid')
         agent = self._get_ldap_agent()
         REQUEST.RESPONSE.setHeader('Content-Type', 'application/pkix-cert')

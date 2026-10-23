@@ -809,7 +809,7 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
                 raise
 
     def get_ldap_user_groups(self, user_id):
-        """ """
+        """ Get ldap user groups """
         agent = self._get_ldap_agent(bind=True, secondary=True)
         ldap_roles = sorted(agent.member_roles_info('user',
                                                     user_id,

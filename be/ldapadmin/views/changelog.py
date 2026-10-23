@@ -73,22 +73,19 @@ class BaseActionDetails(BrowserView):
 
 
 class EditedOrg(BaseActionDetails):
-    """
-    """
+    """ Edited org """
 
     action_title = "Edited organisation"
 
 
 class CreatedOrg(BaseActionDetails):
-    """
-    """
+    """ Created org """
 
     action_title = "Created organisation"
 
 
 class RenamedOrg(BaseActionDetails):
-    """
-    """
+    """ Renamed org """
 
     action_title = "Renamed organisation"
 
@@ -97,8 +94,7 @@ class RenamedOrg(BaseActionDetails):
 
 
 class AddedMemberToOrg(BaseActionDetails):
-    """
-    """
+    """ Added member to org """
 
     action_title = "Added member to organisation"
 
@@ -107,8 +103,7 @@ class AddedMemberToOrg(BaseActionDetails):
 
 
 class AddedPendingMemberToOrg(BaseActionDetails):
-    """
-    """
+    """ Added pending member to org """
 
     action_title = "Added pending member to organisation"
 
@@ -117,8 +112,7 @@ class AddedPendingMemberToOrg(BaseActionDetails):
 
 
 class RemovedMemberFromOrg(BaseActionDetails):
-    """
-    """
+    """ Removed member from org """
 
     action_title = "Removed member from organisation"
 
@@ -127,8 +121,7 @@ class RemovedMemberFromOrg(BaseActionDetails):
 
 
 class RemovedPendingMemberFromOrg(BaseActionDetails):
-    """
-    """
+    """ Removed pending member from org """
 
     action_title = "Removed pending member from organisation"
 

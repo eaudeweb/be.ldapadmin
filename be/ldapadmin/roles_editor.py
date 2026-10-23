@@ -1558,14 +1558,12 @@ class ExtendedManagementUsersSchema(colander.MappingSchema):
 
 class NoExtendedManagementRoleError(Exception):
 
-    """
-    """
+    """ No extended management role error """
 
 
 class NoExceptionManagementView(BrowserView):
 
-    """
-    """
+    """ No exception management view """
     index = NaayaViewPageTemplateFile(
         'zpt/extended/no_extended_management.zpt')
 
