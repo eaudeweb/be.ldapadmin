@@ -1,5 +1,6 @@
 1.7 (unreleased)
 ----------------
+* No printing of the e-mail confirmation link on the console [dumitval]
 
 1.6 (2026-10-29)
 ----------------

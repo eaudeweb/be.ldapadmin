@@ -218,8 +218,9 @@ class CreateDeleteRolesTest(unittest.TestCase):
         self.handler = logging.StreamHandler(self.stream)
         self.log = logging.getLogger('roles_editor')
         self.log.setLevel(logging.INFO)
-        for handler in self.log.handlers:
+        for handler in self.log.handlers[:]:
             self.log.removeHandler(handler)
+            handler.close()
         self.log.addHandler(self.handler)
 
     def tearDown(self):
@@ -379,8 +380,9 @@ class AddRemoveRoleMembersTest(unittest.TestCase):
         self.handler = logging.StreamHandler(self.stream)
         self.log = logging.getLogger('roles_editor')
         self.log.setLevel(logging.INFO)
-        for handler in self.log.handlers:
+        for handler in self.log.handlers[:]:
             self.log.removeHandler(handler)
+            handler.close()
         self.log.addHandler(self.handler)
 
     def tearDown(self):
@@ -553,8 +555,9 @@ class UserSearchTest(unittest.TestCase):
         self.handler = logging.StreamHandler(self.stream)
         self.log = logging.getLogger('roles_editor')
         self.log.setLevel(logging.INFO)
-        for handler in self.log.handlers:
+        for handler in self.log.handlers[:]:
             self.log.removeHandler(handler)
+            handler.close()
         self.log.addHandler(self.handler)
 
     def tearDown(self):

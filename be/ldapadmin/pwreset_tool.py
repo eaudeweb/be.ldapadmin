@@ -143,7 +143,6 @@ class PasswordResetTool(SimpleItem):
             'network_name': NETWORK_NAME,
             'expiration_time': expiration_time.strftime("%Y-%m-%d %H:%M:%S")
         }
-        print(options['token_url'])
         message = _create_plain_message(
             email_template(**options))
         message['From'] = addr_from

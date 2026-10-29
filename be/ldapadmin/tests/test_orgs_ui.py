@@ -84,8 +84,9 @@ class OrganisationsUITest(unittest.TestCase):
         self.handler = logging.StreamHandler(self.stream)
         self.log = logging.getLogger('orgs_editor')
         self.log.setLevel(logging.INFO)
-        for handler in self.log.handlers:
+        for handler in self.log.handlers[:]:
             self.log.removeHandler(handler)
+            handler.close()
         self.log.addHandler(self.handler)
 
     def tearDown(self):
@@ -385,8 +386,9 @@ class OrganisationsUIMembersTest(unittest.TestCase):
         self.handler = logging.StreamHandler(self.stream)
         self.log = logging.getLogger('orgs_editor')
         self.log.setLevel(logging.INFO)
-        for handler in self.log.handlers:
+        for handler in self.log.handlers[:]:
             self.log.removeHandler(handler)
+            handler.close()
         self.log.addHandler(self.handler)
 
     def tearDown(self):
