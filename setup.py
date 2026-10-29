@@ -2,7 +2,7 @@
 from setuptools import setup, find_namespace_packages
 
 setup(name='be.ldapadmin',
-      version='1.6.dev0',
+      version='1.7.dev0',
       author='Eau de Web',
       author_email='office@eaudeweb.ro',
       packages=find_namespace_packages(include=['be.*']),

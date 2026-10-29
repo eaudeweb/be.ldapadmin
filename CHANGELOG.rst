@@ -1,4 +1,7 @@
-1.6 (unreleased)
+1.7 (unreleased)
+----------------
+
+1.6 (2026-10-29)
 ----------------
 * Remove the deform dependency [dumitval]
 
