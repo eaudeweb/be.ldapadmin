@@ -1,4 +1,7 @@
-1.7 (unreleased)
+1.8 (unreleased)
+----------------
+
+1.7 (2026-10-29)
 ----------------
 * No printing of the e-mail confirmation link on the console [dumitval]
 
