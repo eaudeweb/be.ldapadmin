@@ -17,6 +17,56 @@ NUMBER_FORMAT = phonenumbers.PhoneNumberFormat.INTERNATIONAL
 INVALID_STRING_ENCODING = ('%s must be written in latin characters')
 
 
+class TextAreaWidget(object):
+    """ Renders the node as a <textarea> in users/create.zpt and edit.zpt """
+    template = 'textarea'
+
+    def __init__(self, rows=None, cols=None):
+        self.rows = rows
+        self.cols = cols
+
+
+class SelectWidget(object):
+    """ Renders the node as a <select> with `values` as (value, label) """
+    template = 'select'
+
+    def __init__(self, values=(), multiple=False):
+        self.values = values
+        self.multiple = multiple
+
+
+def _clean_value(node, value):
+    """ Strip a submitted text as deform's text widgets did, '' is missing """
+    if value is colander.null:
+        return value
+    if not isinstance(value, str):
+        raise colander.Invalid(node, "Pstruct is not a string")
+    return value.strip() or colander.null
+
+
+def validate_form(schema, form_data):
+    """ Deserialize the submitted `form_data` dict with the mapping `schema`.
+
+    Raises colander.Invalid with one child per invalid field.
+    """
+    cstruct = {}
+    error = None
+    for num, node in enumerate(schema.children):
+        try:
+            cstruct[node.name] = _clean_value(
+                node, form_data.get(node.name, colander.null))
+        except colander.Invalid as e:
+            cstruct[node.name] = None
+            if error is None:
+                error = colander.Invalid(schema, value=cstruct)
+            error.add(e, num)
+    # schema errors replace the cleanup errors, as in deform
+    appstruct = schema.deserialize(cstruct)
+    if error is not None:
+        raise error
+    return appstruct
+
+
 class PhoneNumber(colander.String):
     """PhoneNumber type for colander Node"""
 

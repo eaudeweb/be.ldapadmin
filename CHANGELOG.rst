@@ -1,5 +1,6 @@
 1.6 (unreleased)
 ----------------
+* Remove the deform dependency [dumitval]
 
 1.5 (2026-10-23)
 ----------------

@@ -20,12 +20,12 @@ from AccessControl.class_init import InitializeClass
 from Products.Five.browser import BrowserView
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 import colander
-import deform
 import jellyfish
 import ldap
 from unidecode import unidecode
 from transliterate import translit, get_available_language_codes
 from be.ldapadmin.schema import user_info_schema, _uid_node, _password_node
+from be.ldapadmin.schema import SelectWidget, TextAreaWidget, validate_form
 from be.ldapadmin.constants import NETWORK_NAME, USERS_SPECIFIC
 from be.ldapadmin.help_messages import help_messages
 from be.ldapadmin.logic_common import _session_pop, _create_plain_message
@@ -56,12 +56,12 @@ user_info_edit_schema = user_info_schema.clone()
 
 user_info_add_schema.children.insert(0, _uid_node)
 user_info_add_schema.children.insert(1, _password_node)
-user_info_add_schema['postal_address'].widget = deform.widget.TextAreaWidget()
-user_info_edit_schema['postal_address'].widget = deform.widget.TextAreaWidget()
-user_info_add_schema['search_helper'].widget = deform.widget.TextAreaWidget()
-user_info_add_schema['department'].widget = deform.widget.TextAreaWidget()
-user_info_add_schema['email'].widget = deform.widget.TextAreaWidget()
-user_info_edit_schema['email'].widget = deform.widget.TextAreaWidget()
+user_info_add_schema['postal_address'].widget = TextAreaWidget()
+user_info_edit_schema['postal_address'].widget = TextAreaWidget()
+user_info_add_schema['search_helper'].widget = TextAreaWidget()
+user_info_add_schema['department'].widget = TextAreaWidget()
+user_info_add_schema['email'].widget = TextAreaWidget()
+user_info_edit_schema['email'].widget = TextAreaWidget()
 
 password_letters = '23456789ABCDEFGHIJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
 
@@ -439,20 +439,19 @@ class UsersAdmin(SimpleItem, PropertyManager):
             choices.append((org['id'], label))
         choices.sort(key=lambda x: x[1].lower())
 
-        widget = deform.widget.SelectWidget(values=choices, multiple=True)
+        widget = SelectWidget(values=choices, multiple=True)
         schema['organisation'].widget = widget
 
         if 'submit' in REQUEST.form:
             try:
-                user_form = deform.Form(schema)
                 orgs = form_data.pop('organisation')
-                user_info = user_form.validate(form_data.items())
+                user_info = validate_form(schema, form_data)
                 user_info['search_helper'] = _transliterate(
                     user_info['first_name'], user_info['last_name'],
                     user_info.get('full_name_native', ''),
                     user_info.get('search_helper', ''))
-            except deform.ValidationFailure as e:
-                for field_error in e.error.children:
+            except colander.Invalid as e:
+                for field_error in e.children:
                     errors[field_error.node.name] = field_error.msg
                 msg = "Please correct the errors below and try again."
                 _set_session_message(REQUEST, 'error', msg)
@@ -582,7 +581,7 @@ class UsersAdmin(SimpleItem, PropertyManager):
                 label = org['text']
             choices.append((org['id'], label))
         choices.sort(key=lambda x: x[1].lower())
-        widget = deform.widget.SelectWidget(values=choices)
+        widget = SelectWidget(values=choices)
         schema['organisation'].widget = widget
 
         options = {'user': user,
@@ -605,19 +604,17 @@ class UsersAdmin(SimpleItem, PropertyManager):
 
         schema = user_info_edit_schema.clone()
 
-        user_form = deform.Form(schema)
-
         try:
             orgs = REQUEST.form.pop('organisation', [])
             if not isinstance(orgs, list):
                 orgs = [orgs]
-            new_info = user_form.validate(REQUEST.form.items())
+            new_info = validate_form(schema, REQUEST.form)
             new_info['organisation'] = orgs
             new_info['email'] = split_to_list(new_info['email'])
-        except deform.ValidationFailure as e:
+        except colander.Invalid as e:
             session = REQUEST.SESSION
             errors = {}
-            for field_error in e.error.children:
+            for field_error in e.children:
                 errors[field_error.node.name] = field_error.msg
             session[SESSION_FORM_ERRORS] = errors
             session[SESSION_FORM_DATA] = dict(REQUEST.form)
@@ -1064,14 +1061,12 @@ class BulkUserImporter(BrowserView):
         errors = []
         successfully_imported = []
 
-        user_form = deform.Form(user_info_add_schema)
-
         for record_number, row_data in enumerate(rows):
             try:
-                user_info = user_form.validate(row_data.items())
+                user_info = validate_form(user_info_add_schema, row_data)
                 user_info['password'] = row_data['password']
-            except deform.ValidationFailure as e:
-                for field_error in e.error.children:
+            except colander.Invalid as e:
+                for field_error in e.children:
                     errors.append('%s at row %d: %s' %
                                   (field_error.node.name, record_number + 1,
                                    field_error.msg))

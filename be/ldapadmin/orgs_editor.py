@@ -14,7 +14,6 @@ from AccessControl.Permissions import view, view_management_screens
 from AccessControl.unauthorized import Unauthorized
 from AccessControl.class_init import InitializeClass
 from App.config import getConfiguration
-import deform
 from Products.PageTemplates.PageTemplateFile import PageTemplateFile
 from OFS.PropertyManager import PropertyManager
 from OFS.SimpleItem import SimpleItem
@@ -34,7 +33,7 @@ from be.ldapadmin.ui_common import TemplateRenderer
 from be.ldapadmin.logic_common import _is_authenticated, logged_in_user
 from be.ldapadmin.logic_common import load_template
 from be.ldapadmin.import_export import XLSX_CONTENT_TYPE, set_response_attachment
-from be.ldapadmin.schema import user_info_schema
+from be.ldapadmin.schema import user_info_schema, TextAreaWidget
 
 
 cfg = getConfiguration()
@@ -74,7 +73,7 @@ SESSION_FORM_DATA = SESSION_PREFIX + '.form_data'
 SESSION_FORM_ERRORS = SESSION_PREFIX + '.form_errors'
 
 user_info_edit_schema = user_info_schema.clone()
-user_info_edit_schema['postal_address'].widget = deform.widget.TextAreaWidget()
+user_info_edit_schema['postal_address'].widget = TextAreaWidget()
 del user_info_edit_schema['first_name']
 del user_info_edit_schema['last_name']
 

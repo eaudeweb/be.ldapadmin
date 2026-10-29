@@ -25,10 +25,10 @@ from lxml.html import tostring
 from lxml.html.soupparser import fromstring
 from persistent.mapping import PersistentMapping
 import colander
-import deform
 from . import query
 import xlsxwriter
 from be.ldapadmin import ldap_config
+from be.ldapadmin.schema import TextAreaWidget
 from be.ldapadmin.import_export import read_excel_sheets
 from be.ldapadmin.import_export import generate_excel, merge_cells_by_column, sort_rows_by_group
 from be.ldapadmin.ui_common import CommonTemplateLogic
@@ -1550,7 +1550,7 @@ class IsExtendedEnabled(BrowserView):
 class ExtendedManagementUsersSchema(colander.MappingSchema):
     users = colander.SchemaNode(
         colander.String(),
-        widget=deform.widget.TextAreaWidget(rows=10, cols=60),
+        widget=TextAreaWidget(rows=10, cols=60),
         description="""List of current members. Add new member ids here.
         Removing a member from this list will remove all roles from this
         branch""")
