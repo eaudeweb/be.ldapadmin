@@ -1,5 +1,7 @@
 1.8 (unreleased)
 ----------------
+* Fix the password reset failing when the form has no email field
+  [dumitval]
 
 1.7 (2026-10-29)
 ----------------
