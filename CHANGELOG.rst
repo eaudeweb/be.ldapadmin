@@ -1,10 +1,15 @@
-0.3 (unreleased)
+0.4 (unreleased)
 ----------------
 * Fix the password reset failing when the form has no email field
   [dumitval]
 * Add a roles column to the users export of an organisation and to the
   members sheet of the organisations export, listing the most specific
   roles of each user, one per line [dumitval]
+
+0.3 (2026-10-20)
+----------------
+* fix the member search failing with IndexError in agent_from_uf when the
+  LDAP server does not answer: raise LDAPUnavailable instead [dumitval]
 
 0.2 (2026-10-15)
 ----------------
