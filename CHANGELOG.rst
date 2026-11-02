@@ -1,5 +1,7 @@
 0.3 (unreleased)
 ----------------
+* Fix the password reset failing when the form has no email field
+  [dumitval]
 * Add a roles column to the users export of an organisation and to the
   members sheet of the organisations export, listing the most specific
   roles of each user, one per line [dumitval]

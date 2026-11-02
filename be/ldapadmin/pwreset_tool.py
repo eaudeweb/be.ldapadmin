@@ -168,7 +168,13 @@ class PasswordResetTool(SimpleItem):
         if REQUEST is None:
             REQUEST = self.REQUEST
         if not email:
-            email = REQUEST.form['email']
+            email = REQUEST.form.get('email', '').strip()
+        if not email:
+            _set_session_message(REQUEST, 'error',
+                                 "Please enter your email address.")
+            if not on_create:
+                REQUEST.RESPONSE.redirect(self.absolute_url() + '/')
+            return
 
         agent = self._get_ldap_agent()
         users = agent.search_user_by_email(email)   # , no_disabled=True)
