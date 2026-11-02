@@ -1,4 +1,7 @@
-0.4 (unreleased)
+0.5 (unreleased)
+----------------
+
+0.4 (2026-11-02)
 ----------------
 * Fix the password reset failing when the form has no email field
   [dumitval]
