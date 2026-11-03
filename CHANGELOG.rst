@@ -1,5 +1,7 @@
 0.5 (unreleased)
 ----------------
+* Fix the organisation page failing when a change log author is not an LDAP
+  user [dumitval]
 
 0.4 (2026-11-02)
 ----------------

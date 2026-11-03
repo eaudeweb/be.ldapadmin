@@ -36,11 +36,13 @@ class BaseActionDetails(BrowserView):
             return entry['author']
 
         try:
-            user_info = self.context._get_ldap_agent().user_info(
-                entry['author'])
+            agent = self.context._get_ldap_agent()
         except AttributeError:
-            user_info = self.base._get_ldap_agent().user_info(entry['author'])
+            agent = self.base._get_ldap_agent()
+        try:
+            user_info = agent.user_info(entry['author'])
         except UserNotFound:
+            # authors such as cleanup scripts are not LDAP users
             user_info = {'full_name': entry['author']}
         return u"%s (%s)" % (user_info['full_name'], entry['author'])
 
