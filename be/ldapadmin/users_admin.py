@@ -1040,8 +1040,9 @@ class BulkUserImporter(BrowserView):
         """ Force download of excel template """
 
         ret = generate_excel(self.TEMPLATE_COLUMNS, [[]])
-        content_type = 'application/vnd.ms-excel'
-        filename = 'create_users_template.xls'
+        content_type = ('application/vnd.openxmlformats-officedocument.'
+                        'spreadsheetml.sheet')
+        filename = 'create_users_template.xlsx'
 
         set_response_attachment(
             self.request.RESPONSE, filename, content_type, len(ret))

@@ -8,7 +8,7 @@ import logging
 import operator
 import os
 import re
-from StringIO import StringIO
+from io import BytesIO
 from AccessControl import ClassSecurityInfo
 from AccessControl.Permissions import view, view_management_screens
 from AccessControl.unauthorized import Unauthorized
@@ -23,7 +23,7 @@ from ldap import INVALID_DN_SYNTAX
 from persistent.mapping import PersistentMapping
 import ldap
 import ldap_config
-import xlwt
+import xlsxwriter
 from be.ldapadmin.db_agent import UserNotFound, NameAlreadyExists
 from be.ldapadmin.db_agent import OrgRenameError, editable_org_fields
 from be.ldapadmin.constants import USER_INFO_KEYS
@@ -43,6 +43,12 @@ log = logging.getLogger('orgs_editor')
 
 ldap_edit_orgs = 'LDAP edit organisations'
 ldap_edit_users = 'LDAP edit users'
+
+XLSX_CONTENT_TYPE = ('application/vnd.openxmlformats-officedocument.'
+                     'spreadsheetml.sheet')
+# write strings as text: no automatic links or formulas
+_XLSX_OPTIONS = {'in_memory': True, 'strings_to_urls': False,
+                 'strings_to_formulas': False}
 
 manage_add_orgs_editor_html = PageTemplateFile('zpt/orgs_manage_add',
                                                globals())
@@ -188,28 +194,18 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
             org_info = agent.org_info(d['id'])
             d.update(org_info)
 
-        wb = xlwt.Workbook()
-        org_sheet = wb.add_sheet("Organisations")
-        users_sheet = wb.add_sheet("Members")
+        out = BytesIO()
+        wb = xlsxwriter.Workbook(out, _XLSX_OPTIONS)
+        org_sheet = wb.add_worksheet("Organisations")
+        users_sheet = wb.add_worksheet("Members")
 
-        style_header = xlwt.XFStyle()
-        style_org_header = xlwt.XFStyle()
-        style_normal = xlwt.XFStyle()
-
-        normalfont = xlwt.Font()
-        headerfont = xlwt.Font()
-        headerfont.bold = True
-        biggerheaderfont = xlwt.Font()
-        biggerheaderfont.bold = True
-        biggerheaderfont.height = int(biggerheaderfont.height * 1.3)
-
-        style_header.font = headerfont
-        style_normal.font = normalfont
-        style_org_header.font = biggerheaderfont
+        style_header = wb.add_format({'bold': True})
+        style_org_header = wb.add_format({'bold': True, 'font_size': 14})
+        style_normal = wb.add_format({})
         # one role per line in the roles cell; keep the other cells of the
         # row aligned with its first line
-        style_top = xlwt.easyxf('align: vert top')
-        style_roles = xlwt.easyxf('align: wrap on, vert top')
+        style_top = wb.add_format({'valign': 'top'})
+        style_roles = wb.add_format({'text_wrap': True, 'valign': 'top'})
 
         cols = [
             'id',
@@ -225,28 +221,32 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         org_sheet.write(0, 6, "Members count", style_header)
 
         for i, row in enumerate(orgs):
-            org_sheet.write(i + 2, 0, row['id'], style_normal)
-            org_sheet.write(i + 2, 1, row['name'], style_normal)
-            org_sheet.write(i + 2, 2, row['locality'], style_normal)
-            org_sheet.write(i + 2, 3, row['street'], style_normal)
-            org_sheet.write(i + 2, 4, row['fax'], style_normal)
-            org_sheet.write(i + 2, 5, row['email'], style_normal)
+            org_sheet.write(i + 2, 0, _cell(row['id']), style_normal)
+            org_sheet.write(i + 2, 1, _cell(row['name']), style_normal)
+            org_sheet.write(i + 2, 2, _cell(row['locality']), style_normal)
+            org_sheet.write(i + 2, 3, _cell(row['street']), style_normal)
+            org_sheet.write(i + 2, 4, _cell(row['fax']), style_normal)
+            org_sheet.write(i + 2, 5, _cell(row['email']), style_normal)
             members = agent.members_in_org(row['id'])   # TODO: optimize
             org_sheet.write(i + 2, 6, len(members), style_normal)
 
-        org_sheet.col(1).set_width(9000)
-        org_sheet.col(2).set_width(5000)
-        org_sheet.col(3).set_width(9000)
-        org_sheet.col(4).set_width(4000)
-        org_sheet.col(5).set_width(5000)
+        org_sheet.set_column(1, 1, 35)
+        org_sheet.set_column(2, 2, 20)
+        org_sheet.set_column(3, 3, 35)
+        org_sheet.set_column(4, 4, 15)
+        org_sheet.set_column(5, 5, 20)
+
+        users_sheet.set_column(0, 0, 15)
+        users_sheet.set_column(1, 1, 23)
+        users_sheet.set_column(2, 3, 35)
 
         row_counter = 0
         for org in orgs:
             org_id, org_name = org['id'], org['name']
 
-            users_sheet.write(row_counter, 0, org_name, style_org_header)
-            row = users_sheet.row(row_counter)
-            row.height = int(row.height * 1.3)
+            users_sheet.write(row_counter, 0, _cell(org_name),
+                              style_org_header)
+            users_sheet.set_row(row_counter, 19.5)
             row_counter += 2
 
             org_members = []
@@ -270,36 +270,30 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
                 users_sheet.write(row_counter, i, col, style_header)
 
             for i, member in enumerate(org_members, 1):
-                users_sheet.write(row_counter + i, 0, member['uid'],
+                users_sheet.write(row_counter + i, 0, _cell(member['uid']),
                                   style_top)
-                users_sheet.write(row_counter + i, 1, member['full_name'],
-                                  style_top)
-                users_sheet.write(row_counter + i, 2, member['email'],
+                users_sheet.write(row_counter + i, 1,
+                                  _cell(member['full_name']), style_top)
+                users_sheet.write(row_counter + i, 2, _cell(member['email']),
                                   style_top)
                 roles = agent.list_member_roles('user', member['uid'])
                 users_sheet.write(row_counter + i, 3,
-                                  '\n'.join(_leaf_roles(roles)), style_roles)
-
-            users_sheet.col(0).set_width(4000)
-            users_sheet.col(1).set_width(6000)
-            users_sheet.col(2).set_width(9000)
-            users_sheet.col(3).set_width(9000)
+                                  _cell('\n'.join(_leaf_roles(roles))),
+                                  style_roles)
 
             row_counter += i + 2
 
-        out = StringIO()
-        wb.save(out)
-        out.seek(0)
-        out = out.read()
+        wb.close()
+        out = out.getvalue()
 
         RESPONSE = REQUEST.RESPONSE
 
-        RESPONSE.setHeader('Content-Type', "application/vnd.ms-excel")
+        RESPONSE.setHeader('Content-Type', XLSX_CONTENT_TYPE)
         RESPONSE.setHeader('Content-Length', len(out))
         RESPONSE.setHeader('Pragma', 'public')
         RESPONSE.setHeader('Cache-Control', 'max-age=0')
         RESPONSE.addHeader("content-disposition",
-                           "attachment; filename=organisations.xls")
+                           "attachment; filename=organisations.xlsx")
 
         return out
 
@@ -312,17 +306,13 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
 
         agent = self._get_ldap_agent()
         org_info = agent.org_info(org_id)
-        wb = xlwt.Workbook()
-        org_sheet = wb.add_sheet("Organisation Details")
-        users_sheet = wb.add_sheet("Users")
+        out = BytesIO()
+        wb = xlsxwriter.Workbook(out, _XLSX_OPTIONS)
+        org_sheet = wb.add_worksheet("Organisation Details")
+        users_sheet = wb.add_worksheet("Users")
 
-        style_header = xlwt.XFStyle()
-        style_normal = xlwt.XFStyle()
-        normalfont = xlwt.Font()
-        headerfont = xlwt.Font()
-        headerfont.bold = True
-        style_header.font = headerfont
-        style_normal.font = normalfont
+        style_header = wb.add_format({'bold': True})
+        style_normal = wb.add_format({})
 
         cols = [
             'id',
@@ -334,13 +324,13 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
         ]
         for i, col in enumerate(cols):
             org_sheet.write(0, i, col, style_header)
-            org_sheet.write(2, i, org_info.get(col), style_normal)
+            org_sheet.write(2, i, _cell(org_info.get(col)), style_normal)
 
-        org_sheet.col(1).set_width(9000)
-        org_sheet.col(2).set_width(5000)
-        org_sheet.col(3).set_width(9000)
-        org_sheet.col(4).set_width(4000)
-        org_sheet.col(5).set_width(5000)
+        org_sheet.set_column(1, 1, 35)
+        org_sheet.set_column(2, 2, 20)
+        org_sheet.set_column(3, 3, 35)
+        org_sheet.set_column(4, 4, 15)
+        org_sheet.set_column(5, 5, 20)
 
         org_members = []
         members = agent.members_in_org(org_id)
@@ -364,34 +354,31 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
 
         # one role per line in the roles cell; keep the other cells of the
         # row aligned with its first line
-        style_top = xlwt.easyxf('align: vert top')
-        style_roles = xlwt.easyxf('align: wrap on, vert top')
+        style_top = wb.add_format({'valign': 'top'})
+        style_roles = wb.add_format({'text_wrap': True, 'valign': 'top'})
         for i, member in enumerate(org_members, 2):
-            users_sheet.write(i, 0, member['uid'], style_top)
-            users_sheet.write(i, 1, member['full_name'], style_top)
-            users_sheet.write(i, 2, member['email'], style_top)
+            users_sheet.write(i, 0, _cell(member['uid']), style_top)
+            users_sheet.write(i, 1, _cell(member['full_name']), style_top)
+            users_sheet.write(i, 2, _cell(member['email']), style_top)
             roles = agent.list_member_roles('user', member['uid'])
-            users_sheet.write(i, 3, '\n'.join(_leaf_roles(roles)),
+            users_sheet.write(i, 3, _cell('\n'.join(_leaf_roles(roles))),
                               style_roles)
 
-        users_sheet.col(0).set_width(4000)
-        users_sheet.col(1).set_width(6000)
-        users_sheet.col(2).set_width(9000)
-        users_sheet.col(3).set_width(9000)
+        users_sheet.set_column(0, 0, 15)
+        users_sheet.set_column(1, 1, 23)
+        users_sheet.set_column(2, 3, 35)
 
-        out = StringIO()
-        wb.save(out)
-        out.seek(0)
-        out = out.read()
+        wb.close()
+        out = out.getvalue()
 
         RESPONSE = REQUEST.RESPONSE
 
-        RESPONSE.setHeader('Content-Type', "application/vnd.ms-excel")
+        RESPONSE.setHeader('Content-Type', XLSX_CONTENT_TYPE)
         RESPONSE.setHeader('Content-Length', len(out))
         RESPONSE.setHeader('Pragma', 'public')
         RESPONSE.setHeader('Cache-Control', 'max-age=0')
         RESPONSE.addHeader("content-disposition",
-                           "attachment; filename=%s.xls" % org_id)
+                           "attachment; filename=%s.xlsx" % org_id)
 
         return out
 
@@ -871,6 +858,13 @@ class OrganisationsEditor(SimpleItem, PropertyManager):
 
 
 InitializeClass(OrganisationsEditor)
+
+
+def _cell(value):
+    """ xlsxwriter on Python 2 needs unicode, not UTF-8 byte strings """
+    if isinstance(value, str):
+        return value.decode('utf-8', 'replace')
+    return value
 
 
 def _leaf_roles(role_ids):

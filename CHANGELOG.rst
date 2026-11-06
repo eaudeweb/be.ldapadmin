@@ -2,6 +2,8 @@
 ----------------
 * Fix the organisation page failing when a change log author is not an LDAP
   user [dumitval]
+* Export the organisations as .xlsx, name the users template .xlsx
+  [dumitval]
 
 0.4 (2026-11-02)
 ----------------
