@@ -1,5 +1,7 @@
 1.8 (unreleased)
 ----------------
+* Fix the account changelog merging separate operations in one row
+  [dumitval]
 * Fix the organisation page failing when a change log author is not an LDAP
   user [dumitval]
 * Fix the password reset failing when the form has no email field
