@@ -1,4 +1,7 @@
-0.6 (unreleased)
+0.7 (unreleased)
+----------------
+
+0.6 (2026-11-09)
 ----------------
 * Fix the account changelog merging separate operations in one row
   [dumitval]
