@@ -1,5 +1,7 @@
 0.6 (unreleased)
 ----------------
+* Fix the account changelog merging separate operations in one row
+  [dumitval]
 
 0.5 (2026-11-06)
 ----------------
