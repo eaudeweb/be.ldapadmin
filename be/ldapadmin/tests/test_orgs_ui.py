@@ -567,6 +567,8 @@ class OrganisationsExportTest(unittest.TestCase):
         self.agent.org_info.return_value = self.org
         self.agent.members_in_org.return_value = ['jsmith', 'anne']
         self.agent.user_info.side_effect = users.get
+        self.agent.list_member_roles.return_value = [
+            'eionet', 'eionet-nfp', 'eionet-nfp-dk']
 
     def headers(self):
         calls = self.request.RESPONSE.setHeader.call_args_list
@@ -590,9 +592,10 @@ class OrganisationsExportTest(unittest.TestCase):
         self.assertTrue(wb['Organisations']['A1'].font.bold)
         members = sheet_rows(data, 'Members')
         self.assertEqual(members[0][0], 'Ye olde bridge club')
-        self.assertEqual(members[2], ['user id', 'fullname', 'email'])
+        self.assertEqual(members[2], ['user id', 'fullname', 'email',
+                                      'roles'])
         self.assertEqual(members[3], ['anne', 'Anne Tester',
-                                      'anne@example.com'])
+                                      'anne@example.com', 'eionet-nfp-dk'])
 
     def test_export_org(self):
         self.request.form = {'id': 'dk_bridge_club'}
@@ -609,7 +612,7 @@ class OrganisationsExportTest(unittest.TestCase):
         self.assertEqual(details[2][:2], ['dk_bridge_club',
                                           'Ye olde bridge club'])
         users = sheet_rows(data, 'Users')
-        self.assertEqual(users[0], ['user id', 'fullname', 'email'])
+        self.assertEqual(users[0], ['user id', 'fullname', 'email', 'roles'])
         self.assertEqual(users[2], ['anne', 'Anne Tester',
-                                    'anne@example.com'])
+                                    'anne@example.com', 'eionet-nfp-dk'])
         self.assertTrue(wb['Users']['A1'].font.bold)
